@@ -464,7 +464,7 @@
       <section class="hero-stage attr-${esc(h.primary_attr)}">
         <div class="hero-bgname" aria-hidden="true"><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span></div>
         <div class="wrap hero-grid">
-          <a class="back magnetic" href="#/"><span>←</span> Semua hero</a>
+          <a class="back" href="#/"><span>←</span> Semua hero</a>
           <div class="hero-art">
             <div class="hero-halo"></div>
             <video class="hero-video" muted loop playsinline preload="auto" aria-hidden="true"></video>
@@ -769,18 +769,6 @@
     document.addEventListener("mouseenter", () => gsap.to(".cursor", { opacity: 1 }));
   }
 
-  function initMagnetic() {
-    if (!finePointer || !hasGsap) return;
-    document.addEventListener("pointermove", (e) => {
-      for (const el of $$(".magnetic")) {
-        const r = el.getBoundingClientRect();
-        const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-        const near = Math.hypot(dx, dy) < Math.max(r.width, r.height);
-        gsap.to(el, { x: near ? dx * 0.3 : 0, y: near ? dy * 0.4 : 0, duration: 0.6, ease: "power3.out" });
-      }
-    });
-  }
-
   // 3D tilt and glare that follows the pointer on hero cards.
   function initTilt() {
     if (!finePointer) return;
@@ -919,7 +907,6 @@
     initSmoothScroll();
     initScrollUi();
     initCursor();
-    initMagnetic();
     initTilt();
 
     const firstIsHero = /^#\/hero\/\d+/.test(location.hash);
