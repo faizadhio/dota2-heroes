@@ -150,6 +150,17 @@
   const compact = (n) => new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
   const bracketLabel = () => $("#bracket").selectedOptions[0].textContent;
 
+  // Transparent hero videos are decoded on the CPU, so only the ones on screen keep playing.
+  const onScreen = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const v = e.target;
+      v._visible = e.isIntersecting;
+      if (v.id === "intro-video") $(".intro").classList.toggle("off", !e.isIntersecting);
+      if (!e.isIntersecting) v.pause();
+      else if (v.currentSrc) v.play().catch(() => {});
+    }
+  });
+
   // Point a <video> at a hero's animated render. Phones get a still render instead, and when no render
   // exists at all the hero portrait is shown in a framed card rather than a bare rectangle.
   function setHeroVideo(video, h) {
@@ -184,6 +195,7 @@
     const lastSource = video.querySelector("source:last-child");
     lastSource.addEventListener("error", () => { video.classList.add("failed"); probe(); }, { once: true });
     video.load();
+    if (video._visible === false) return;
     const p = video.play();
     if (p && p.catch) p.catch(() => {});
   }
@@ -202,6 +214,7 @@
     const top = meta.ranked.find((r) => r.pick > 0);
     if (!top) return;
     setHeroVideo($("#intro-video"), top.h);
+    onScreen.observe($("#intro-video"));
     $("#intro-hero-link").href = `#/hero/${top.h.id}`;
     $("#intro-hero-link span").textContent = `${top.h.localized_name}, #1 right now`;
     $("#intro-now").innerHTML = `
@@ -223,6 +236,7 @@
 
   function renderTop() {
     const top = state.meta.ranked.filter((r) => r.pick > 0).slice(0, 5);
+    $$(".top-video").forEach((v) => onScreen.unobserve(v));
     $("#top-bracket").textContent = `Top 5 · ${bracketLabel()}`;
     $("#top-track").innerHTML = top.map(({ h, wr, pr, tier }, i) => `
       <a class="top-card attr-${esc(h.primary_attr)}" href="#/hero/${h.id}">
@@ -243,18 +257,16 @@
         </div>
       </a>`).join("");
 
-    // Load each card's hero video only when it comes near the screen.
+    // Load each card's hero video when it comes near the screen; it only plays while actually on screen.
     const byId = new Map(state.heroes.map((h) => [h.id, h]));
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
-        const v = e.target;
-        if (e.isIntersecting) {
-          if (!v.dataset.loaded) { v.dataset.loaded = "1"; setHeroVideo(v, byId.get(Number(v.dataset.hero))); }
-          else v.play().catch(() => {});
-        } else if (v.dataset.loaded) v.pause();
+        if (!e.isIntersecting) continue;
+        io.unobserve(e.target);
+        setHeroVideo(e.target, byId.get(Number(e.target.dataset.hero)));
       }
     }, { rootMargin: "200px" });
-    $$(".top-video").forEach((v) => io.observe(v));
+    $$(".top-video").forEach((v) => { io.observe(v); onScreen.observe(v); });
   }
 
   function renderNumbers(animate) {
@@ -590,6 +602,7 @@
   function renderHero(id) {
     const h = state.heroes.find((x) => x.id === id);
     const view = $("#hero-view");
+    $$("video", view).forEach((v) => onScreen.unobserve(v));
     if (!h) { view.innerHTML = `<div class="wrap"><a class="back" href="#/">‹ All heroes</a><p class="state">Hero not found.</p></div>`; return null; }
     document.title = `${h.localized_name} · Dota 2 Meta`;
     const meta = state.meta.get(h.id);
@@ -640,6 +653,7 @@
       </div>`;
 
     setHeroVideo($(".hero-video", view), h);
+    onScreen.observe($(".hero-video", view));
     return h;
   }
 
@@ -649,7 +663,7 @@
     heroCtx = gsap.context(() => {
       const name = new SplitText(".hero-name", { type: "chars", charsClass: "ch" });
       const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-      tl.from(".hero-art", { xPercent: -30, opacity: 0, scale: 0.85, ...(finePointer ? { filter: "blur(20px)", clearProps: "filter" } : {}), duration: 1.4 })
+      tl.from(".hero-art", { xPercent: -30, opacity: 0, scale: 0.85, rotate: -4, duration: 1.4 })
         .from(".hero-halo", { scale: 0, opacity: 0, duration: 1.6 }, 0)
         .from(".hero-sub", { y: 30, opacity: 0, duration: 0.8 }, 0.2)
         .from(name.chars, { yPercent: 120, rotate: 12, opacity: 0, duration: 1.1, stagger: 0.04 }, 0.25)
@@ -746,8 +760,6 @@
     ScrollTrigger.refresh();
     scrollToY(listScroll);
     moveSegThumb(false);
-    const v = $("#intro-video");
-    if (v.paused) v.play().catch(() => {});
   }
 
   function showHero(id) {
@@ -779,10 +791,12 @@
     if (!hasGsap) return;
     const title = new SplitText(".intro-title .split", { type: "chars", charsClass: "ch" });
     const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-    tl.from(".intro-media", { scale: 1.3, opacity: 0, filter: "blur(30px)", duration: 2 }, 0)
+    tl.from(".intro-media", { scale: 1.3, opacity: 0, duration: 2 }, 0)
       .from(".intro-outline", { yPercent: 40, opacity: 0, duration: 2 }, 0)
       .from(".intro .eyebrow", { y: 20, opacity: 0, duration: 1 }, 0.2)
-      .from(title.chars, { yPercent: 130, rotateX: -90, opacity: 0, duration: 1.3, stagger: 0.035, transformOrigin: "50% 100%" }, 0.25)
+      .from(title.chars, { yPercent: 130, rotateX: -90, opacity: 0, duration: 1.3, stagger: 0.035, transformOrigin: "50% 100%",
+        // Put the title back together once it lands, so the gold shine paints one line instead of every letter.
+        onComplete: () => title.revert() }, 0.25)
       .from(".intro-lead", { y: 30, opacity: 0, duration: 1 }, 0.8)
       .from(".intro-actions .btn", { y: 30, opacity: 0, duration: 1, stagger: 0.1 }, 0.95)
       .from(".intro-now", { x: 40, opacity: 0, duration: 1 }, 1.1)
@@ -801,14 +815,14 @@
     });
     // Only react to scroll while the marquee is on screen, and skew the two rows rather than every tile.
     const rows = $$(".marquee-row");
-    let skew = 0, onScreen = true;
+    let skew = 0, marqueeOn = true;
     ScrollTrigger.create({
       trigger: ".marquee", start: "top bottom", end: "bottom top",
-      onToggle: (self) => { onScreen = self.isActive; loops.forEach((l) => l.paused(!onScreen)); }
+      onToggle: (self) => { marqueeOn = self.isActive; loops.forEach((l) => l.paused(!marqueeOn)); }
     });
     ScrollTrigger.create({
       onUpdate: (self) => {
-        if (!onScreen) return;
+        if (!marqueeOn) return;
         const v = self.getVelocity();
         const boost = 1 + Math.min(4, Math.abs(v) / 400);
         loops.forEach((l) => gsap.to(l, { timeScale: boost * (v < 0 ? -1 : 1), duration: 0.3, overwrite: true, onComplete: () => gsap.to(l, { timeScale: v < 0 ? -1 : 1, duration: 1.2 }) }));
@@ -934,7 +948,8 @@
     if (!canvas.getContext) { canvas.remove(); return; }
     const ctx = canvas.getContext("2d");
     const lite = !finePointer || innerWidth < 900;
-    const dpr = Math.min(lite ? 1 : 1.5, window.devicePixelRatio || 1);
+    // The embers are soft glows, so they gain nothing from a high-DPI canvas.
+    const dpr = 1;
     // One glow sprite per hue band, drawn once, then stamped with drawImage (no gradients per frame).
     const sprites = [14, 26, 38].map((hue) => {
       const c = document.createElement("canvas");
