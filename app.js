@@ -593,7 +593,7 @@
     heroCtx = gsap.context(() => {
       const name = new SplitText(".hero-name", { type: "chars", charsClass: "ch" });
       const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-      tl.from(".hero-art", { xPercent: -30, opacity: 0, scale: 0.85, filter: "blur(20px)", duration: 1.4 })
+      tl.from(".hero-art", { xPercent: -30, opacity: 0, scale: 0.85, ...(finePointer ? { filter: "blur(20px)", clearProps: "filter" } : {}), duration: 1.4 })
         .from(".hero-halo", { scale: 0, opacity: 0, duration: 1.6 }, 0)
         .from(".hero-sub", { y: 30, opacity: 0, duration: 0.8 }, 0.2)
         .from(name.chars, { yPercent: 120, rotate: 12, opacity: 0, duration: 1.1, stagger: 0.04 }, 0.25)
@@ -630,7 +630,7 @@
       $$(".phase", root).forEach((phase) => {
         const t = gsap.timeline({ scrollTrigger: { trigger: phase, start: "top 88%" } });
         t.from($("h4", phase), { x: -30, opacity: 0, duration: 0.6, ease: "power3.out" })
-          .from($$(".item", phase), { x: -40, opacity: 0, duration: 0.6, ease: "power3.out", stagger: 0.06 }, 0.1)
+          .fromTo($$(".item", phase), { x: -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.06, clearProps: "transform,opacity" }, 0.1)
           .from($$(".bar i", phase), { scaleX: 0, duration: 1, ease: "power3.out", stagger: 0.06 }, 0.3);
       });
     });
@@ -640,7 +640,7 @@
   function animateMatchupsIn(root) {
     if (!hasGsap || !heroCtx) return;
     heroCtx.add(() => {
-      gsap.from($$(".mu", root), { x: 30, opacity: 0, duration: 0.6, ease: "power3.out", stagger: 0.05, scrollTrigger: { trigger: root, start: "top 90%" } });
+      gsap.fromTo($$(".mu", root), { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.05, clearProps: "transform,opacity", scrollTrigger: { trigger: root, start: "top 90%" } });
     });
   }
 
@@ -742,14 +742,21 @@
       const dir = row.classList.contains("reverse") ? 1 : -1;
       return gsap.fromTo($$(".mq-inner", row), { xPercent: dir < 0 ? 0 : -100 }, { xPercent: dir < 0 ? -100 : 0, duration: 60 + i * 10, ease: "none", repeat: -1 });
     });
-    let skew = 0;
+    // Only react to scroll while the marquee is on screen, and skew the two rows rather than every tile.
+    const rows = $$(".marquee-row");
+    let skew = 0, onScreen = true;
+    ScrollTrigger.create({
+      trigger: ".marquee", start: "top bottom", end: "bottom top",
+      onToggle: (self) => { onScreen = self.isActive; loops.forEach((l) => l.paused(!onScreen)); }
+    });
     ScrollTrigger.create({
       onUpdate: (self) => {
+        if (!onScreen) return;
         const v = self.getVelocity();
         const boost = 1 + Math.min(4, Math.abs(v) / 400);
         loops.forEach((l) => gsap.to(l, { timeScale: boost * (v < 0 ? -1 : 1), duration: 0.3, overwrite: true, onComplete: () => gsap.to(l, { timeScale: v < 0 ? -1 : 1, duration: 1.2 }) }));
-        const s = gsap.utils.clamp(-8, 8, v / -250);
-        if (Math.abs(s - skew) > 0.3) { skew = s; gsap.to(".mq", { skewX: s, duration: 0.4, overwrite: true, onComplete: () => gsap.to(".mq", { skewX: 0, duration: 0.8 }) }); }
+        const sk = gsap.utils.clamp(-8, 8, v / -250);
+        if (Math.abs(sk - skew) > 0.3) { skew = sk; gsap.to(rows, { skewX: sk, duration: 0.4, overwrite: true, onComplete: () => gsap.to(rows, { skewX: 0, duration: 0.8 }) }); }
       }
     });
     gsap.from(".marquee", { opacity: 0, y: 60, duration: 1.2, ease: "power3.out", scrollTrigger: { trigger: ".marquee", start: "top 90%" } });
@@ -869,42 +876,59 @@
     const canvas = $("#embers");
     if (!canvas.getContext) { canvas.remove(); return; }
     const ctx = canvas.getContext("2d");
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const lite = !finePointer || innerWidth < 900;
+    const dpr = Math.min(lite ? 1 : 1.5, window.devicePixelRatio || 1);
+    // One glow sprite per hue band, drawn once, then stamped with drawImage (no gradients per frame).
+    const sprites = [14, 26, 38].map((hue) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d");
+      const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grad.addColorStop(0, `hsla(${hue}, 100%, 68%, 1)`);
+      grad.addColorStop(0.35, `hsla(${hue}, 100%, 55%, .45)`);
+      grad.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 64, 64);
+      return c;
+    });
     let w, h, parts = [];
     const spawn = (anywhere) => ({
       x: Math.random() * w, y: anywhere ? Math.random() * h : h + 10,
       r: 0.8 + Math.random() * 2.6, vy: 0.3 + Math.random() * 1.1, vx: (Math.random() - 0.5) * 0.3,
-      phase: Math.random() * Math.PI * 2, hue: 10 + Math.random() * 32, life: 0.5 + Math.random() * 0.5
+      phase: Math.random() * Math.PI * 2, s: sprites[(Math.random() * sprites.length) | 0], life: 0.5 + Math.random() * 0.5
     });
+    let lastW = 0;
     const resize = () => {
+      // Mobile browsers fire resize when the address bar slides; only rebuild when the width changes.
+      if (innerWidth === lastW && parts.length) { h = canvas.height = innerHeight * dpr; return; }
+      lastW = innerWidth;
       w = canvas.width = innerWidth * dpr;
       h = canvas.height = innerHeight * dpr;
-      const n = Math.round(Math.min(110, (innerWidth * innerHeight) / 12000));
+      const n = Math.round(Math.min(lite ? 36 : 80, (innerWidth * innerHeight) / (lite ? 16000 : 14000)));
       parts = Array.from({ length: n }, () => spawn(true));
     };
     resize();
     addEventListener("resize", resize);
-    let running = true;
+    let running = !document.hidden, last = 0;
+    const step = lite ? 1000 / 30 : 0;
     document.addEventListener("visibilitychange", () => { running = !document.hidden; if (running) requestAnimationFrame(frame); });
     function frame(t) {
       if (!running) return;
+      requestAnimationFrame(frame);
+      if (step && t - last < step) return;
+      const k = last ? Math.min(3, (t - last) / 16.7) : 1;
+      last = t;
       ctx.clearRect(0, 0, w, h);
       ctx.globalCompositeOperation = "lighter";
       for (const p of parts) {
-        p.y -= p.vy * dpr;
-        p.x += (p.vx + Math.sin(t / 900 + p.phase) * 0.3) * dpr;
+        p.y -= p.vy * dpr * k;
+        p.x += (p.vx + Math.sin(t / 900 + p.phase) * 0.3) * dpr * k;
         if (p.y < -10) Object.assign(p, spawn(false));
-        const a = Math.min(1, p.y / h + 0.2) * p.life;
-        const r = p.r * dpr;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 4);
-        g.addColorStop(0, `hsla(${p.hue}, 100%, 65%, ${a})`);
-        g.addColorStop(1, `hsla(${p.hue}, 100%, 50%, 0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r * 4, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.globalAlpha = Math.max(0, Math.min(1, p.y / h + 0.2) * p.life);
+        const d = p.r * dpr * 8;
+        ctx.drawImage(p.s, p.x - d / 2, p.y - d / 2, d, d);
       }
-      requestAnimationFrame(frame);
+      ctx.globalAlpha = 1;
     }
     requestAnimationFrame(frame);
   }
