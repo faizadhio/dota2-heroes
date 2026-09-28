@@ -355,6 +355,84 @@
     });
     window.addEventListener("resize", () => moveSegThumb(false));
     moveSegThumb(false);
+    initSelects();
+  }
+
+  // Custom dropdowns: the native <select> stays as the source of truth (hidden), the button + list drive it.
+  function initSelects() {
+    const all = [];
+    const closeAll = (except) => all.forEach((d) => d !== except && d.close());
+    for (const select of $$(".controls select")) {
+      const wrap = document.createElement("div");
+      wrap.className = "dd";
+      select.before(wrap);
+      wrap.append(select);
+      select.tabIndex = -1;
+      select.setAttribute("aria-hidden", "true");
+      const id = `${select.id}-menu`;
+      wrap.insertAdjacentHTML("beforeend", `
+        <button type="button" class="dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="${id}" aria-label="${esc(select.getAttribute("aria-label"))}">
+          <span class="dd-label"></span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+        </button>
+        <ul class="dd-menu" id="${id}" role="listbox" tabindex="-1" data-lenis-prevent></ul>`);
+      const btn = $(".dd-btn", wrap), label = $(".dd-label", wrap), menu = $(".dd-menu", wrap);
+      let active = 0;
+      const opts = () => [...select.options];
+      const sync = () => { label.textContent = select.selectedOptions[0] ? select.selectedOptions[0].textContent : ""; };
+      const setActive = (i) => {
+        const items = $$("li", menu);
+        active = Math.max(0, Math.min(items.length - 1, i));
+        items.forEach((li, j) => li.classList.toggle("active", j === active));
+        if (items[active]) { items[active].scrollIntoView({ block: "nearest" }); menu.setAttribute("aria-activedescendant", items[active].id); }
+      };
+      const choose = (i) => {
+        const o = opts()[i];
+        if (o && select.value !== o.value) {
+          select.value = o.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        sync();
+        dd.close();
+        btn.focus();
+      };
+      const dd = {
+        open() {
+          closeAll(dd);
+          menu.innerHTML = opts().map((o, i) => `<li role="option" id="${id}-${i}" style="--i:${i}" aria-selected="${o.selected}" data-i="${i}"><i></i>${esc(o.textContent)}</li>`).join("");
+          wrap.classList.add("open");
+          btn.setAttribute("aria-expanded", "true");
+          setActive(select.selectedIndex);
+          menu.focus({ preventScroll: true });
+        },
+        close() {
+          if (!wrap.classList.contains("open")) return;
+          wrap.classList.remove("open");
+          btn.setAttribute("aria-expanded", "false");
+        },
+      };
+      all.push(dd);
+      btn.addEventListener("click", () => (wrap.classList.contains("open") ? dd.close() : dd.open()));
+      btn.addEventListener("keydown", (e) => {
+        if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); dd.open(); }
+      });
+      menu.addEventListener("click", (e) => { const li = e.target.closest("li"); if (li) choose(Number(li.dataset.i)); });
+      menu.addEventListener("mousemove", (e) => { const li = e.target.closest("li"); if (li && Number(li.dataset.i) !== active) setActive(Number(li.dataset.i)); });
+      menu.addEventListener("keydown", (e) => {
+        const n = select.options.length;
+        if (e.key === "ArrowDown") setActive(active + 1);
+        else if (e.key === "ArrowUp") setActive(active - 1);
+        else if (e.key === "Home") setActive(0);
+        else if (e.key === "End") setActive(n - 1);
+        else if (e.key === "Enter" || e.key === " ") choose(active);
+        else if (e.key === "Escape") { dd.close(); btn.focus(); }
+        else if (e.key === "Tab") { dd.close(); return; }
+        else return;
+        e.preventDefault();
+      });
+      select.addEventListener("change", sync);
+      sync();
+    }
+    document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".dd")) closeAll(); });
   }
 
   // ---------- hero page ----------
@@ -760,7 +838,7 @@
     addEventListener("pointermove", (e) => {
       xd(e.clientX); yd(e.clientY); xr(e.clientX); yr(e.clientY);
       const card = e.target.closest(".card, .top-card, .mq");
-      const link = e.target.closest("a, button, select, input, label");
+      const link = e.target.closest("a, button, select, input, label, .dd-menu li");
       document.body.classList.toggle("cursor-view", !!card);
       document.body.classList.toggle("cursor-link", !card && !!link);
       label.textContent = card ? "View" : "";
