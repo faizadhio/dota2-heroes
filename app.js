@@ -356,6 +356,8 @@
   function initFilters() {
     const roles = [...new Set(state.heroes.flatMap((h) => h.roles || []))].sort();
     $("#role").insertAdjacentHTML("beforeend", roles.map((r) => `<option value="${esc(r)}">${esc(r)}</option>`).join(""));
+    const live = new Set(liveBrackets().map(String));
+    for (const o of $$("#bracket option")) if (/^\d$/.test(o.value) && !live.has(o.value)) o.remove();
 
     let t;
     $("#search").addEventListener("input", (e) => {
@@ -525,7 +527,7 @@
     if (rows.length < 4) return `<p class="state">Not enough matchup data yet.</p>`;
     rows.sort((a, b) => b.wr - a.wr);
     const list = (arr) => arr.map(({ h, wr, n }) => `
-      <a class="mu" href="#/hero/${h.id}" title="${n} game">
+      <a class="mu" href="#/hero/${h.id}" title="${n} ${n === 1 ? "game" : "games"}">
         <img src="${esc(heroImg(h))}" alt="" loading="lazy"><span>${esc(h.localized_name)}</span><b class="${wrClass(wr)}">${pct(wr, 0)}</b>
       </a>`).join("");
     return `
@@ -535,11 +537,21 @@
       </div>`;
   }
 
+  // OpenDota sometimes reports no games for a bracket (lately Immortal); leave those out everywhere.
+  const liveBrackets = () => BRACKETS.filter((b) => state.heroes.some((h) => h[`${b}_pick`] > 0));
+
   function renderBracketBars(h) {
-    return `<div class="brackets">${BRACKETS.map((b) => {
+    return `<div class="brackets">${liveBrackets().map((b) => {
       const { pick, win } = bracketStats(h, b);
-      const wr = pick ? win / pick : 0;
-      return `<div class="br" title="${BRACKET_NAMES[b]}: ${pct(wr)}">
+      if (!pick) {
+        return `<div class="br empty" title="${BRACKET_NAMES[b]}: no data">
+          <span class="br-bar"><i style="--h:0"></i></span>
+          <span class="br-val">–</span>
+          <span class="br-name">${BRACKET_NAMES[b].slice(0, 3)}</span>
+        </div>`;
+      }
+      const wr = win / pick;
+      return `<div class="br" title="${BRACKET_NAMES[b]}: ${pct(wr)} · ${pick.toLocaleString("en-US")} picks">
         <span class="br-bar ${wrClass(wr)}"><i style="--h:${Math.max(0.04, Math.min(1, (wr - 0.4) / 0.2))}"></i></span>
         <span class="br-val">${pct(wr, 0)}</span>
         <span class="br-name">${BRACKET_NAMES[b].slice(0, 3)}</span>
