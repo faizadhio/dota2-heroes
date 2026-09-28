@@ -123,7 +123,11 @@ body.cursor-view .cursor-dot { opacity: 0; }
 .intro-glow { position: absolute; width: 70vmin; height: 70vmin; border-radius: 50%; background: radial-gradient(circle, rgba(226, 83, 59, .5), rgba(226, 83, 59, .18) 35%, rgba(226, 83, 59, 0) 68%); will-change: transform; animation: breathe 5s ease-in-out infinite alternate; }
 @keyframes breathe { to { transform: scale(1.18); opacity: .75; } }
 #intro-video, .top-video, .hero-video { position: relative; width: 100%; height: 100%; object-fit: contain; background: center / contain no-repeat; }
-#intro-video { max-width: 900px; -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 70%, transparent); }
+#intro-video { max-width: 900px; }
+/* Fade the render's bottom edge with an overlay; a mask on a playing video is re-applied every frame */
+.intro-media::after { content: ""; position: absolute; inset: auto 0 0; height: 30%; background: linear-gradient(180deg, rgba(5, 5, 7, 0), var(--bg)); }
+.intro-media, .intro-outline, .intro-content, .mq-inner, .marquee-row, .hero-bgname span, .hero-art { will-change: transform; }
+.intro.off .gold, .intro.off .gold .ch, .intro.off .intro-glow { animation-play-state: paused; }
 .intro::after { content: ""; position: absolute; inset: auto 0 0; height: 30%; background: linear-gradient(180deg, transparent, var(--bg)); pointer-events: none; }
 .intro-outline { position: absolute; left: -2vw; bottom: 4vh; font: 900 clamp(120px, 26vw, 420px)/0.8 var(--epic); color: transparent; -webkit-text-stroke: 1px rgba(255, 255, 255, .08); white-space: nowrap; pointer-events: none; user-select: none; }
 .intro-content { position: relative; z-index: 2; }
@@ -170,7 +174,7 @@ body.cursor-view .cursor-dot { opacity: 0; }
 .top-card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 30% 50%, color-mix(in srgb, var(--ac) 35%, transparent), transparent 60%); z-index: -1; }
 .top-rank { position: absolute; right: 26px; top: 6px; font: 900 170px/1 var(--epic); color: transparent; -webkit-text-stroke: 1.5px color-mix(in srgb, var(--ac) 60%, transparent); z-index: -1; }
 .top-art { position: relative; height: 100%; display: grid; place-items: center; }
-.top-glow { position: absolute; width: 90%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--ac) 50%, transparent), transparent 65%); filter: blur(24px); }
+.top-glow { position: absolute; width: 100%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--ac) 42%, transparent), color-mix(in srgb, var(--ac) 16%, transparent) 38%, transparent 68%); }
 .top-video { height: 120%; transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
 .top-card:hover .top-video { transform: scale(1.08) translateY(-10px); }
 .top-attr { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin: 0 0 6px; }
@@ -426,7 +430,7 @@ body.has-cursor input { cursor: auto; }
 .top { position: fixed; top: 0; left: 0; right: 0; z-index: 50; transition: background .5s; }
 .top::before { content: ""; position: absolute; inset: 0 0 -30px; background: linear-gradient(180deg, rgba(5, 5, 7, .85), rgba(5, 5, 7, 0)); pointer-events: none; transition: opacity .5s; }
 .top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 106, 42, .7) 30%, rgba(240, 192, 90, .8) 50%, rgba(255, 106, 42, .7) 70%, transparent); opacity: 0; transform: scaleX(.3); transition: opacity .6s, transform .8s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 0 14px rgba(255, 106, 42, .6); }
-.top.scrolled { background: rgba(7, 6, 8, .62); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); }
+.top.scrolled { background: rgba(7, 6, 8, .7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .top.scrolled::before { opacity: 0; }
 .top.scrolled::after { opacity: 1; transform: none; }
 .top-inner { position: relative; display: flex; align-items: center; gap: 28px; height: 78px; transition: height .5s; }
