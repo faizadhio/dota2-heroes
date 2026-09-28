@@ -844,8 +844,11 @@
       return tween;
     };
     if (hasGsap) {
-      gsap.fromTo(".emblem-ring, .emblem-mark", { strokeDashoffset: 400 }, { strokeDashoffset: 0, duration: 1.8, ease: "power2.inOut", stagger: 0.3 });
-      gsap.to(".emblem", { rotate: 360, duration: 8, ease: "none", repeat: -1 });
+      // The logo "ignites": plate fades in, lava veins spread, then the glyph flares up.
+      gsap.timeline()
+        .from(".loader-logo", { scale: 0.6, opacity: 0, duration: 0.9, ease: "back.out(1.6)" })
+        .from(".loader-logo .d2-veins path", { strokeDasharray: 40, strokeDashoffset: 40, duration: 1.2, ease: "power2.out", stagger: 0.08 }, 0.3)
+        .fromTo(".loader-logo .d2-glyph", { opacity: 0.05 }, { opacity: 1, duration: 1.4, ease: "power2.in" }, 0.5);
     }
     to(70, 2.5);
     const started = performance.now();
@@ -858,7 +861,7 @@
           to(100, 0.6).then(() => {
             gsap.timeline({ onComplete: () => { $("#loader").remove(); resolve(); } })
               .to(".loader-count, .loader-bar, .loader-text", { y: -30, opacity: 0, duration: 0.5, stagger: 0.05, ease: "power3.in" })
-              .to(".emblem", { scale: 8, opacity: 0, duration: 0.9, ease: "expo.in" }, "-=0.2")
+              .to(".loader-logo", { scale: 9, opacity: 0, duration: 0.9, ease: "expo.in" }, "-=0.2")
               .to("#loader", { clipPath: "inset(0 0 100% 0)", duration: 1, ease: "expo.inOut" }, "-=0.35")
               .add(() => document.body.classList.remove("is-loading"), "-=0.8");
           });
@@ -878,9 +881,9 @@
 
     loadPatch().then((p) => {
       if (!p) return;
-      $("#patch-text").textContent = `Patch ${p.name}`;
+      $("#patch-text").textContent = p.name;
       $("#intro-patch").textContent = p.name;
-    }).catch(() => { $("#patch-text").textContent = "Patch terbaru"; });
+    }).catch(() => { $("#patch-text").textContent = "terbaru"; });
 
     try {
       const [heroes, items] = await Promise.all([loadHeroStats(), loadItems()]);
