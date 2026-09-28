@@ -5,34 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dota 2 Meta · Hero & Item Build</title>
   <meta name="description" content="Daftar hero Dota 2 dengan win rate, pick rate dan item build terpopuler berdasarkan meta patch saat ini. Data live dari OpenDota API.">
-  <meta name="theme-color" content="#0b0d12">
+  <meta name="theme-color" content="#07080c">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23c23c2a'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-weight='700' font-size='34' fill='white'>D2</text></svg>">
   <link rel="preconnect" href="https://api.opendota.com">
   <link rel="preconnect" href="https://cdn.cloudflare.steamstatic.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <canvas id="embers" aria-hidden="true"></canvas>
+  <div class="bg-glow" aria-hidden="true"><span></span><span></span></div>
+  <div class="progress" aria-hidden="true"></div>
+
   <header class="top">
     <div class="wrap top-inner">
-      <a href="#/" class="brand"><span class="brand-mark">D2</span> Meta<span class="brand-dim">Builds</span></a>
-      <div class="patch" id="patch" title="Patch saat ini">Memuat patch…</div>
+      <a href="#/" class="brand"><span class="brand-mark">D2</span><span>Meta<em>Builds</em></span></a>
+      <div class="patch" title="Patch saat ini"><span class="pulse"></span><span id="patch-text">Memuat patch…</span></div>
     </div>
   </header>
 
   <main class="wrap">
     <section id="list-view">
-      <div class="intro">
-        <h1>Hero Dota 2 &amp; item build meta</h1>
-        <p>Win rate dan pick rate dari pertandingan publik terbaru, plus item yang paling sering dibeli tiap hero. Semua data diambil langsung dari <a href="https://docs.opendota.com/" target="_blank" rel="noopener">OpenDota API</a>.</p>
+      <div class="banner">
+        <p class="eyebrow reveal">Live dari OpenDota · diperbarui tiap hari</p>
+        <h1 class="title reveal"><span class="title-line">Kuasai meta</span> <span class="title-line shine" id="title-patch">patch terbaru</span></h1>
+        <p class="lead reveal">Win rate, pick rate dan tier setiap hero, lengkap dengan item build yang paling sering dipakai pemain. Pilih rank kamu untuk melihat meta yang paling relevan.</p>
+        <div class="counters reveal">
+          <div><b id="c-heroes">0</b><span>Hero</span></div>
+          <div><b id="c-picks">0</b><span>Pick dianalisis</span></div>
+          <div><b id="c-s">0</b><span>Hero tier S</span></div>
+        </div>
       </div>
 
-      <div class="controls">
-        <input id="search" type="search" placeholder="Cari hero…" autocomplete="off" aria-label="Cari hero">
+      <section class="spotlight reveal" aria-label="Hero paling kuat">
+        <div class="section-head">
+          <h2>Sedang merajai meta</h2>
+          <span class="muted" id="spot-bracket">Semua rank</span>
+        </div>
+        <div class="spot-row" id="spotlight">
+          <div class="spot skeleton"></div><div class="spot skeleton"></div><div class="spot skeleton"></div><div class="spot skeleton"></div><div class="spot skeleton"></div>
+        </div>
+      </section>
+
+      <div class="controls" id="controls">
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="search" type="search" placeholder="Cari hero…" autocomplete="off" aria-label="Cari hero">
+        </label>
         <div class="seg" id="attr-filter" role="group" aria-label="Atribut utama">
+          <span class="seg-thumb" aria-hidden="true"></span>
           <button data-attr="" class="on">Semua</button>
           <button data-attr="str"><i class="attr str"></i>Str</button>
           <button data-attr="agi"><i class="attr agi"></i>Agi</button>
@@ -68,11 +92,10 @@
         <span><b class="tier t-B">B</b> Seimbang</span>
         <span><b class="tier t-C">C</b> Lemah</span>
         <span><b class="tier t-D">D</b> Hindari</span>
+        <span class="count" id="result-count"></span>
       </div>
 
-      <div id="grid" class="grid" aria-live="polite">
-        <p class="state">Memuat data hero…</p>
-      </div>
+      <div id="grid" class="grid" aria-live="polite"></div>
     </section>
 
     <section id="hero-view" hidden></section>
