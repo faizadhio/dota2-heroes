@@ -4,7 +4,7 @@ Every Dota 2 hero with win rate, pick rate and an S to D meta tier for the chose
 
 Live site: https://faizadhio.github.io/dota2-heroes/
 
-Built with the OpenDota API. A static site (`index.html`, `style.css`, `app.js`) with no build step. Animation uses GSAP (ScrollTrigger, SplitText, Flip) and Lenis smooth scrolling, vendored in `vendor/`. Data comes live from the free [OpenDota API](https://docs.opendota.com/) and is cached in the browser for a day to stay under its 60 requests per minute limit.
+Built with the OpenDota API. A static site (`index.html`, `style.css`, `app.js`) with no build step. Fonts (Unbounded, Chakra Petch, Manrope) are self-hosted in `fonts/`. Animation uses GSAP (ScrollTrigger, SplitText, Flip) and Lenis smooth scrolling, vendored in `vendor/`. Data comes live from the free [OpenDota API](https://docs.opendota.com/) and is cached in the browser for a day to stay under its 60 requests per minute limit.
 
 ## Preview locally
 

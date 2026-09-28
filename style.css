@@ -1,3 +1,12 @@
+@font-face { font-family: "Unbounded"; font-weight: 700; font-style: normal; font-display: swap; src: url("fonts/unbounded-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Unbounded"; font-weight: 900; font-style: normal; font-display: swap; src: url("fonts/unbounded-latin-900-normal.woff2") format("woff2"); }
+@font-face { font-family: "Chakra Petch"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/chakra-petch-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Chakra Petch"; font-weight: 700; font-style: normal; font-display: swap; src: url("fonts/chakra-petch-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Manrope"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/manrope-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Manrope"; font-weight: 500; font-style: normal; font-display: swap; src: url("fonts/manrope-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Manrope"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/manrope-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Manrope"; font-weight: 700; font-style: normal; font-display: swap; src: url("fonts/manrope-latin-700-normal.woff2") format("woff2"); }
+
 :root {
   --bg: #050507;
   --surface: rgba(20, 22, 30, 0.72);
@@ -17,8 +26,8 @@
   --all: #c79bff;
   --ac: var(--accent);
   --radius: 18px;
-  --display: "Space Grotesk", Inter, system-ui, sans-serif;
-  --epic: "Cinzel", Georgia, serif;
+  --display: "Chakra Petch", "Manrope", system-ui, sans-serif;
+  --epic: "Unbounded", "Manrope", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -29,7 +38,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font: 15px/1.55 "Manrope", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: clip;
 }
@@ -113,7 +122,7 @@ body.cursor-view .cursor-dot { opacity: 0; }
 /* ---------- shared ---------- */
 .eyebrow { display: flex; align-items: center; gap: 12px; text-transform: uppercase; letter-spacing: .22em; font-size: 12px; color: var(--accent-2); margin: 0 0 18px; font-weight: 600; }
 .eyebrow .line { width: 42px; height: 1px; background: currentColor; }
-.section-title { font-family: var(--epic); font-weight: 900; font-size: clamp(34px, 5.5vw, 72px); line-height: 1.02; margin: 0; letter-spacing: .005em; }
+.section-title { font-family: var(--epic); font-weight: 900; font-size: clamp(28px, 4.4vw, 60px); line-height: 1.05; margin: 0; letter-spacing: -.03em; text-transform: uppercase; }
 .split-words .w { display: inline-block; }
 .split-words { overflow: hidden; padding-bottom: .08em; }
 .ch { display: inline-block; }
@@ -138,7 +147,7 @@ body.cursor-view .cursor-dot { opacity: 0; }
 .intro::after { content: ""; position: absolute; inset: auto 0 0; height: 30%; background: linear-gradient(180deg, transparent, var(--bg)); pointer-events: none; }
 .intro-outline { position: absolute; left: -2vw; bottom: 4vh; font: 900 clamp(120px, 26vw, 420px)/0.8 var(--epic); color: transparent; -webkit-text-stroke: 1px rgba(255, 255, 255, .08); white-space: nowrap; pointer-events: none; user-select: none; }
 .intro-content { position: relative; z-index: 2; }
-.intro-title { font-family: var(--epic); font-weight: 900; font-size: clamp(56px, 11vw, 168px); line-height: .92; margin: 0 0 26px; letter-spacing: -.005em; perspective: 800px; }
+.intro-title { font-family: var(--epic); font-weight: 900; font-size: clamp(46px, 9vw, 136px); line-height: .95; margin: 0 0 26px; letter-spacing: -.04em; text-transform: uppercase; perspective: 800px; }
 .intro-title .split { display: block; overflow: hidden; padding: .04em 0 .06em; }
 .gold { background: linear-gradient(100deg, var(--gold) 15%, #fff5d6 35%, var(--accent-2) 55%, var(--gold) 75%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 5s linear infinite; }
 .gold .ch { background: inherit; background-size: inherit; -webkit-background-clip: text; background-clip: text; animation: inherit; }
@@ -185,7 +194,7 @@ body.cursor-view .cursor-dot { opacity: 0; }
 .top-video { height: 120%; filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .7)); transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
 .top-card:hover .top-video { transform: scale(1.08) translateY(-10px); }
 .top-attr { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin: 0 0 6px; }
-.top-info h3 { font: 900 clamp(32px, 4vw, 54px)/1 var(--epic); margin: 0 0 22px; }
+.top-info h3 { font: 900 clamp(26px, 3.2vw, 44px)/1.05 var(--epic); margin: 0 0 22px; letter-spacing: -.03em; text-transform: uppercase; }
 .top-stats { display: flex; gap: 22px; margin-bottom: 26px; }
 .top-stats span { display: grid; gap: 2px; }
 .top-stats b { font: 700 24px/1.1 var(--display); }
@@ -199,7 +208,7 @@ body.cursor-view .cursor-dot { opacity: 0; }
 .numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding: 90px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-top: 40px; }
 .num { padding: 0 24px; border-left: 1px solid var(--border); }
 .num:first-child { border-left: 0; padding-left: 0; }
-.num b { display: block; font: 900 clamp(40px, 5.5vw, 80px)/1 var(--epic); background: linear-gradient(180deg, #fff, #a9adba); -webkit-background-clip: text; background-clip: text; color: transparent; font-variant-numeric: tabular-nums; }
+.num b { display: block; font: 900 clamp(34px, 4.6vw, 68px)/1 var(--epic); letter-spacing: -.04em; background: linear-gradient(180deg, #fff, #a9adba); -webkit-background-clip: text; background-clip: text; color: transparent; font-variant-numeric: tabular-nums; }
 .num span { display: block; color: var(--muted); margin-top: 10px; font-size: 14px; }
 
 /* ---------- browse ---------- */
@@ -288,7 +297,7 @@ body.cursor-view .cursor-dot { opacity: 0; }
 video.failed { object-fit: contain; }
 .hero-info { position: relative; min-width: 0; }
 .hero-sub { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 0 0 10px; }
-.hero-name { font: 900 clamp(48px, 8vw, 118px)/.95 var(--epic); margin: 0 0 20px; letter-spacing: -.005em; text-shadow: 0 0 60px color-mix(in srgb, var(--ac) 55%, transparent); overflow: hidden; padding-bottom: .06em; }
+.hero-name { font: 900 clamp(38px, 6.4vw, 96px)/1 var(--epic); margin: 0 0 20px; letter-spacing: -.04em; text-transform: uppercase; text-shadow: 0 0 60px color-mix(in srgb, var(--ac) 55%, transparent); overflow: hidden; padding-bottom: .06em; }
 .roles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 30px; }
 .roles span { font-size: 12px; padding: 5px 12px; border-radius: 999px; background: color-mix(in srgb, var(--ac) 16%, transparent); border: 1px solid color-mix(in srgb, var(--ac) 45%, transparent); }
 .hero-stats { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
@@ -410,3 +419,4 @@ body.has-cursor input, body.has-cursor select { cursor: auto; }
   .mus { grid-template-columns: 1fr; }
   .panel { padding: 18px; }
 }
+.intro-title .gold { text-transform: none; }
