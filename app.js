@@ -140,35 +140,49 @@
   const img = (path) => (path ? CDN + path : "");
   const heroSlug = (h) => h.name.replace("npc_dota_hero_", "");
   const heroImg = (h) => img(h.img) || `${CDN}/apps/dota2/images/dota_react/heroes/${heroSlug(h)}.png`;
-  const heroRender = (h) => `${CDN}/apps/dota2/images/dota_react/heroes/renders/${heroSlug(h)}.png`;
+  // Dota's site keeps the still renders next to the videos; the images/ path is an older location.
+  const heroRenders = (h) => [
+    `${CDN}/apps/dota2/videos/dota_react/heroes/renders/${heroSlug(h)}.png`,
+    `${CDN}/apps/dota2/images/dota_react/heroes/renders/${heroSlug(h)}.png`
+  ];
   const heroVideo = (h, ext) => `${CDN}/apps/dota2/videos/dota_react/heroes/renders/${heroSlug(h)}.${ext}`;
   const wrClass = (wr) => (wr >= 0.52 ? "good" : wr <= 0.48 ? "bad" : "");
   const compact = (n) => new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
   const bracketLabel = () => $("#bracket").selectedOptions[0].textContent;
 
-  // Point a <video> at a hero's animated render; if it can't play, fall back to the static render image.
+  // Point a <video> at a hero's animated render. Phones get a still render instead, and when no render
+  // exists at all the hero portrait is shown in a framed card rather than a bare rectangle.
   function setHeroVideo(video, h) {
-    video.classList.remove("failed");
-    const fail = () => {
-      video.classList.add("failed");
-      video.style.backgroundImage = `url("${heroRender(h)}"), url("${heroImg(h)}")`;
+    video.classList.remove("failed", "portrait");
+    video.style.backgroundImage = "";
+    const token = (video._heroToken = {});
+    const renders = heroRenders(h);
+    const portrait = () => {
+      if (video._heroToken !== token) return;
+      video.removeAttribute("poster");
+      video.classList.add("failed", "portrait");
+      video.style.backgroundImage = `url("${heroImg(h)}")`;
     };
-    // Phones, touch devices and data saver get the still render instead of a multi-megabyte video.
+    // Try each still render in turn; use the first that loads as the poster.
+    const probe = (i = 0) => {
+      if (i >= renders.length) return portrait();
+      const im = new Image();
+      im.onload = () => { if (video._heroToken === token) video.poster = renders[i]; };
+      im.onerror = () => probe(i + 1);
+      im.src = renders[i];
+    };
     if (liteMedia) {
       video.removeAttribute("src");
       video.innerHTML = "";
-      video.poster = heroRender(h);
-      const probe = new Image();
-      probe.onerror = fail;
-      probe.src = heroRender(h);
+      probe();
       return;
     }
     video.innerHTML = `
       <source src="${esc(heroVideo(h, "webm"))}" type="video/webm">
       <source src="${esc(heroVideo(h, "mov"))}" type='video/mp4; codecs="hvc1"'>`;
-    video.poster = heroRender(h);
+    video.poster = renders[0];
     const lastSource = video.querySelector("source:last-child");
-    lastSource.addEventListener("error", fail, { once: true });
+    lastSource.addEventListener("error", () => { video.classList.add("failed"); probe(); }, { once: true });
     video.load();
     const p = video.play();
     if (p && p.catch) p.catch(() => {});
