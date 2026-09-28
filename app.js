@@ -9,10 +9,10 @@
   const BRACKET_NAMES = { 1: "Herald", 2: "Guardian", 3: "Crusader", 4: "Archon", 5: "Legend", 6: "Ancient", 7: "Divine", 8: "Immortal" };
   const ATTR_NAMES = { str: "Strength", agi: "Agility", int: "Intelligence", all: "Universal" };
   const PHASES = [
-    ["start_game_items", "Item awal", "Dibeli sebelum creep keluar"],
-    ["early_game_items", "Early game", "Menit 0 sampai 10"],
-    ["mid_game_items", "Mid game", "Menit 10 sampai 25"],
-    ["late_game_items", "Late game", "Setelah menit 25"]
+    ["start_game_items", "Starting items", "Bought before creeps spawn"],
+    ["early_game_items", "Early game", "Minute 0 to 10"],
+    ["mid_game_items", "Mid game", "Minute 10 to 25"],
+    ["late_game_items", "Late game", "After minute 25"]
   ];
   // Consumables and wards drown out real build items outside the starting phase.
   const CONSUMABLES = new Set([
@@ -50,7 +50,7 @@
 
   async function getJSON(path) {
     const res = await fetch(API + path);
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText} untuk ${path}`);
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${path}`);
     return res.json();
   }
 
@@ -123,7 +123,7 @@
   const heroRender = (h) => `${CDN}/apps/dota2/images/dota_react/heroes/renders/${heroSlug(h)}.png`;
   const heroVideo = (h, ext) => `${CDN}/apps/dota2/videos/dota_react/heroes/renders/${heroSlug(h)}.${ext}`;
   const wrClass = (wr) => (wr >= 0.52 ? "good" : wr <= 0.48 ? "bad" : "");
-  const compact = (n) => new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  const compact = (n) => new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
   const bracketLabel = () => $("#bracket").selectedOptions[0].textContent;
 
   // Point a <video> at a hero's animated render; if it can't play, fall back to the static render image.
@@ -144,7 +144,7 @@
     if (p && p.catch) p.catch(() => {});
   }
 
-  function countTo(el, to, fmt = (v) => Math.round(v).toLocaleString("id-ID"), opts = {}) {
+  function countTo(el, to, fmt = (v) => Math.round(v).toLocaleString("en-US"), opts = {}) {
     if (!el) return;
     if (!hasGsap) { el.textContent = fmt(to); return; }
     const o = { v: 0 };
@@ -159,7 +159,7 @@
     if (!top) return;
     setHeroVideo($("#intro-video"), top.h);
     $("#intro-hero-link").href = `#/hero/${top.h.id}`;
-    $("#intro-hero-link span").textContent = `${top.h.localized_name}, #1 saat ini`;
+    $("#intro-hero-link span").textContent = `${top.h.localized_name}, #1 right now`;
     $("#intro-now").innerHTML = `
       <span class="now-label">Hero #1 meta</span>
       <b>${esc(top.h.localized_name)}</b>
@@ -195,7 +195,7 @@
             <span><b>${pct(pr)}</b><small>Pick rate</small></span>
             <span><b class="tier t-${tier}">${tier}</b><small>Tier</small></span>
           </div>
-          <span class="top-cta">Lihat build <i>→</i></span>
+          <span class="top-cta">View build <i>→</i></span>
         </div>
       </a>`).join("");
 
@@ -224,7 +224,7 @@
     ];
     for (const [el, to, fmt] of vals) {
       if (animate) countTo(el, to, fmt, { scrollTrigger: { trigger: el, start: "top 90%" } });
-      else el.textContent = (fmt || ((v) => Math.round(v).toLocaleString("id-ID")))(to);
+      else el.textContent = (fmt || ((v) => Math.round(v).toLocaleString("en-US")))(to);
     }
   }
 
@@ -298,7 +298,7 @@
       if (on) shown++;
       grid.appendChild(el);
     }
-    $("#result-count").textContent = `${shown} hero`;
+    $("#result-count").textContent = `${shown} ${shown === 1 ? "hero" : "heroes"}`;
     $("#grid-empty").hidden = shown > 0;
 
     if (flipState) {
@@ -383,12 +383,12 @@
     const total = core.reduce((s, id) => s + (state.items[id].cost || 0), 0);
     const coreHtml = core.length ? `
       <div class="core">
-        <div class="core-head"><h3>Build inti</h3><span class="gold-total"><i></i><b data-gold="${total}">0</b> gold</span></div>
+        <div class="core-head"><h3>Core build</h3><span class="gold-total"><i></i><b data-gold="${total}">0</b> gold</span></div>
         <div class="core-row">
           <svg class="core-path" preserveAspectRatio="none" viewBox="0 0 100 10" aria-hidden="true"><path d="M0 5 H100"/></svg>
           ${core.map((id, i) => {
             const it = state.items[id];
-            return `<figure title="${esc(it.name)} · ${it.cost} gold"><span class="core-step">${i + 1}</span><div class="core-img"><img src="${esc(img(it.img))}" alt="${esc(it.name)}"></div><figcaption>${esc(it.name)}<small>${it.cost.toLocaleString("id-ID")}</small></figcaption></figure>`;
+            return `<figure title="${esc(it.name)} · ${it.cost} gold"><span class="core-step">${i + 1}</span><div class="core-img"><img src="${esc(img(it.img))}" alt="${esc(it.name)}"></div><figcaption>${esc(it.name)}<small>${it.cost.toLocaleString("en-US")}</small></figcaption></figure>`;
           }).join("")}
         </div>
       </div>` : "";
@@ -406,7 +406,7 @@
       }).join("")}</div>`;
     }).join("");
 
-    return coreHtml + `<div class="phases">${phases || '<p class="state">Belum ada data item untuk hero ini.</p>'}</div>`;
+    return coreHtml + `<div class="phases">${phases || '<p class="state">No item data for this hero yet.</p>'}</div>`;
   }
 
   function renderMatchups(matchups) {
@@ -414,7 +414,7 @@
     const rows = (matchups || [])
       .filter((m) => m.games_played >= 10 && byId.has(m.hero_id))
       .map((m) => ({ h: byId.get(m.hero_id), wr: m.wins / m.games_played, n: m.games_played }));
-    if (rows.length < 4) return `<p class="state">Data matchup belum cukup.</p>`;
+    if (rows.length < 4) return `<p class="state">Not enough matchup data yet.</p>`;
     rows.sort((a, b) => b.wr - a.wr);
     const list = (arr) => arr.map(({ h, wr, n }) => `
       <a class="mu" href="#/hero/${h.id}" title="${n} game">
@@ -422,8 +422,8 @@
       </a>`).join("");
     return `
       <div class="mus">
-        <div><h4 class="good">Unggul melawan</h4>${list(rows.slice(0, 5))}</div>
-        <div><h4 class="bad">Sulit melawan</h4>${list(rows.slice(-5).reverse())}</div>
+        <div><h4 class="good">Strong against</h4>${list(rows.slice(0, 5))}</div>
+        <div><h4 class="bad">Weak against</h4>${list(rows.slice(-5).reverse())}</div>
       </div>`;
   }
 
@@ -456,7 +456,7 @@
   function renderHero(id) {
     const h = state.heroes.find((x) => x.id === id);
     const view = $("#hero-view");
-    if (!h) { view.innerHTML = `<div class="wrap"><a class="back" href="#/">‹ Semua hero</a><p class="state">Hero tidak ditemukan.</p></div>`; return null; }
+    if (!h) { view.innerHTML = `<div class="wrap"><a class="back" href="#/">‹ All heroes</a><p class="state">Hero not found.</p></div>`; return null; }
     document.title = `${h.localized_name} · Dota 2 Meta`;
     const meta = state.meta.get(h.id);
 
@@ -464,7 +464,7 @@
       <section class="hero-stage attr-${esc(h.primary_attr)}">
         <div class="hero-bgname" aria-hidden="true"><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span></div>
         <div class="wrap hero-grid">
-          <a class="back" href="#/"><span>←</span> Semua hero</a>
+          <a class="back" href="#/"><span>←</span> All heroes</a>
           <div class="hero-art">
             <div class="hero-halo"></div>
             <video class="hero-video" muted loop playsinline preload="auto" aria-hidden="true"></video>
@@ -478,8 +478,8 @@
               <div class="kpis">
                 <div><b class="tier t-${meta.tier}">${meta.tier}</b><small>Tier · ${esc(bracketLabel())}</small></div>
                 <div><b data-to="${meta.pr}" data-fmt="pct">0%</b><small>Pick rate</small></div>
-                <div><b data-to="${meta.rank}" data-fmt="rank">#0</b><small>dari ${state.heroes.length} hero</small></div>
-                ${h.pro_ban != null ? `<div><b data-to="${h.pro_ban}">0</b><small>Ban di pro match</small></div>` : ""}
+                <div><b data-to="${meta.rank}" data-fmt="rank">#0</b><small>of ${state.heroes.length} heroes</small></div>
+                ${h.pro_ban != null ? `<div><b data-to="${h.pro_ban}">0</b><small>Pro match bans</small></div>` : ""}
               </div>
             </div>
           </div>
@@ -489,17 +489,17 @@
       <div class="wrap panels">
         <section class="panel build">
           <h2>Item build</h2>
-          <p class="hint">Item yang paling sering dibeli pemain ${esc(h.localized_name)} di pertandingan terbaru. Bar menunjukkan popularitas relatif.</p>
+          <p class="hint">Items most often bought by ${esc(h.localized_name)} players in recent matches. Bars show relative popularity.</p>
           <div id="build"><div class="skeleton skel-core"></div><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(6)}</div></div>
         </section>
         <aside class="side">
           <section class="panel">
-            <h2>Win rate per rank</h2>
+            <h2>Win rate by rank</h2>
             ${renderBracketBars(h)}
           </section>
           <section class="panel">
             <h2>Matchup</h2>
-            <p class="hint">Dari pertandingan pro, minimal 10 game.</p>
+            <p class="hint">From pro matches, at least 10 games.</p>
             <div id="matchups"><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(5)}</div></div>
           </section>
         </aside>
@@ -528,7 +528,7 @@
       for (const el of $$("[data-to]", view)) {
         const to = Number(el.dataset.to);
         const fmt = el.dataset.fmt === "rank" ? (v) => `#${Math.max(1, Math.round(v))}`
-          : el.dataset.fmt === "pct" ? (v) => pct(v) : (v) => Math.round(v).toLocaleString("id-ID");
+          : el.dataset.fmt === "pct" ? (v) => pct(v) : (v) => Math.round(v).toLocaleString("en-US");
         tl.add(countTo(el, to, fmt, { duration: 2 }), 0.9);
       }
 
@@ -548,7 +548,7 @@
       if (path) tl.from(path, { attr: { d: "M0 5 H0" }, duration: 1.4, ease: "power2.inOut" }, 0);
       tl.from($$(".core figure", root), { y: 60, opacity: 0, rotate: -8, scale: 0.6, duration: 0.9, ease: "back.out(1.8)", stagger: 0.12 }, 0.1);
       const gold = $("[data-gold]", root);
-      if (gold) tl.add(countTo(gold, Number(gold.dataset.gold), (v) => Math.round(v).toLocaleString("id-ID"), { duration: 1.6 }), 0.3);
+      if (gold) tl.add(countTo(gold, Number(gold.dataset.gold), (v) => Math.round(v).toLocaleString("en-US"), { duration: 1.6 }), 0.3);
       $$(".phase", root).forEach((phase) => {
         const t = gsap.timeline({ scrollTrigger: { trigger: phase, start: "top 88%" } });
         t.from($("h4", phase), { x: -30, opacity: 0, duration: 0.6, ease: "power3.out" })
@@ -636,7 +636,7 @@
     if (first) go(); else wipe(go);
   }
 
-  const errorBox = (err) => `<p class="state error">Gagal memuat data (${esc(err && err.message)}). OpenDota membatasi 60 request per menit, coba lagi sebentar lagi.</p>`;
+  const errorBox = (err) => `<p class="state error">Failed to load data (${esc(err && err.message)}). OpenDota allows 60 requests per minute, please try again shortly.</p>`;
 
   // ---------- list page motion ----------
 
@@ -763,7 +763,7 @@
       const link = e.target.closest("a, button, select, input, label");
       document.body.classList.toggle("cursor-view", !!card);
       document.body.classList.toggle("cursor-link", !card && !!link);
-      label.textContent = card ? "Lihat" : "";
+      label.textContent = card ? "View" : "";
     });
     document.addEventListener("mouseleave", () => gsap.to(".cursor", { opacity: 0 }));
     document.addEventListener("mouseenter", () => gsap.to(".cursor", { opacity: 1 }));
@@ -868,7 +868,7 @@
         });
       },
       fail(err) {
-        $(".loader-text").innerHTML = `<span class="bad">Gagal memuat data: ${esc(err && err.message)}</span><br>Coba muat ulang halaman sebentar lagi.`;
+        $(".loader-text").innerHTML = `<span class="bad">Failed to load data: ${esc(err && err.message)}</span><br>Please reload the page in a moment.`;
       }
     };
   }
@@ -883,7 +883,7 @@
       if (!p) return;
       $("#patch-text").textContent = p.name;
       $("#intro-patch").textContent = p.name;
-    }).catch(() => { $("#patch-text").textContent = "terbaru"; });
+    }).catch(() => { $("#patch-text").textContent = "latest"; });
 
     try {
       const [heroes, items] = await Promise.all([loadHeroStats(), loadItems()]);

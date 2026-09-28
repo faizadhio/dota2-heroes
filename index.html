@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dota 2 Meta · Hero & Item Build</title>
-  <meta name="description" content="Daftar hero Dota 2 dengan win rate, pick rate dan item build terpopuler berdasarkan meta patch saat ini. Data live dari OpenDota API.">
+  <meta name="description" content="Every Dota 2 hero with win rate, pick rate and the most popular item builds for the current meta patch. Live data from the OpenDota API.">
   <meta name="theme-color" content="#050507">
   <meta name="color-scheme" content="dark">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='6' y='6' width='88' height='88' rx='6' fill='%23280a05' stroke='%23ff6a2a' stroke-width='4'/><g fill='%23ffb04a'><path d='M18 28 L28 18 L82 72 L72 82 Z'/><path d='M57 18 L82 18 L82 43 Z'/><path d='M18 57 L18 82 L43 82 Z'/></g></svg>">
@@ -20,7 +20,7 @@
     <span class="logo-slot loader-logo" data-id="lg"></span>
     <div class="loader-count"><span id="loader-num">0</span><small>%</small></div>
     <div class="loader-bar"><i id="loader-bar"></i></div>
-    <p class="loader-text">Menyiapkan data meta…</p>
+    <p class="loader-text">Preparing meta data…</p>
   </div>
 
   <!-- Page wipe used between list and hero pages -->
@@ -33,18 +33,14 @@
 
   <header class="top">
     <div class="wrap top-inner">
-      <a href="#/" class="brand" aria-label="Dota 2 Meta Builds, beranda">
+      <a href="#/" class="brand" aria-label="Dota 2 Meta Builds, home">
         <span class="brand-logo">
           <span class="logo-slot" data-id="hd"></span>
           <span class="sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
         </span>
         <span class="wordmark"><b>DOTA 2</b><small>Meta builds</small></span>
       </a>
-      <nav class="nav">
-        <a href="#/" data-scroll="#top-meta"><i>01</i>Top meta</a>
-        <a href="#/" data-scroll="#heroes"><i>02</i>Semua hero</a>
-      </nav>
-      <div class="patch" title="Patch saat ini"><span class="pulse"></span><small>Patch</small><b id="patch-text">…</b></div>
+      <div class="patch" title="Current patch"><span class="pulse"></span><small>Patch</small><b id="patch-text">…</b></div>
     </div>
   </header>
 
@@ -80,16 +76,16 @@
         </div>
         <div class="intro-outline" aria-hidden="true">DOTA 2</div>
         <div class="wrap intro-content">
-          <p class="eyebrow"><span class="line"></span>Live dari OpenDota</p>
+          <p class="eyebrow"><span class="line"></span>Live from OpenDota</p>
           <h1 class="intro-title">
-            <span class="split">Kuasai</span>
-            <span class="split">meta</span>
-            <span class="split gold" id="intro-patch">terbaru</span>
+            <span class="split">Master</span>
+            <span class="split">the meta</span>
+            <span class="split gold" id="intro-patch">latest</span>
           </h1>
-          <p class="intro-lead">Win rate, pick rate, tier dan item build setiap hero Dota 2, dihitung dari ratusan ribu pertandingan terbaru.</p>
+          <p class="intro-lead">Win rate, pick rate, tier and item build for every Dota 2 hero, calculated from hundreds of thousands of recent matches.</p>
           <div class="intro-actions">
-            <a class="btn btn-primary" href="#/" data-scroll="#heroes"><span>Jelajahi hero</span></a>
-            <a class="btn btn-ghost" id="intro-hero-link" href="#/"><span>Hero terkuat saat ini</span></a>
+            <a class="btn btn-primary" href="#/" data-scroll="#heroes"><span>Explore heroes</span></a>
+            <a class="btn btn-ghost" id="intro-hero-link" href="#/"><span>Strongest hero right now</span></a>
           </div>
           <div class="intro-now" id="intro-now"></div>
         </div>
@@ -106,8 +102,8 @@
       <section class="top-meta" id="top-meta">
         <div class="top-pin">
           <div class="wrap top-head">
-            <p class="eyebrow"><span class="line"></span><span id="top-bracket">Semua rank</span></p>
-            <h2 class="section-title split-words">Lima hero yang sedang merajai meta</h2>
+            <p class="eyebrow"><span class="line"></span><span id="top-bracket">All ranks</span></p>
+            <h2 class="section-title split-words">Five heroes ruling the meta</h2>
           </div>
           <div class="top-track" id="top-track"></div>
         </div>
@@ -115,35 +111,35 @@
 
       <!-- Numbers -->
       <section class="wrap numbers">
-        <div class="num"><b data-count id="n-heroes">0</b><span>Hero dianalisis</span></div>
-        <div class="num"><b data-count id="n-picks">0</b><span>Pick dari semua rank</span></div>
-        <div class="num"><b data-count id="n-s">0</b><span>Hero tier S</span></div>
-        <div class="num"><b data-count id="n-best">0</b><span>Win rate tertinggi</span></div>
+        <div class="num"><b data-count id="n-heroes">0</b><span>Heroes analyzed</span></div>
+        <div class="num"><b data-count id="n-picks">0</b><span>Picks across all ranks</span></div>
+        <div class="num"><b data-count id="n-s">0</b><span>S tier heroes</span></div>
+        <div class="num"><b data-count id="n-best">0</b><span>Highest win rate</span></div>
       </section>
 
       <!-- All heroes -->
       <section class="wrap browse" id="heroes">
         <div class="browse-head">
-          <p class="eyebrow"><span class="line"></span>Tier list lengkap</p>
-          <h2 class="section-title split-words">Pilih hero kamu</h2>
+          <p class="eyebrow"><span class="line"></span>Full tier list</p>
+          <h2 class="section-title split-words">Pick your hero</h2>
         </div>
 
         <div class="controls" id="controls">
           <label class="search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input id="search" type="search" placeholder="Cari hero…" autocomplete="off" aria-label="Cari hero">
+            <input id="search" type="search" placeholder="Search heroes…" autocomplete="off" aria-label="Search heroes">
           </label>
-          <div class="seg" id="attr-filter" role="group" aria-label="Atribut utama">
+          <div class="seg" id="attr-filter" role="group" aria-label="Primary attribute">
             <span class="seg-thumb" aria-hidden="true"></span>
-            <button data-attr="" class="on">Semua</button>
+            <button data-attr="" class="on">All</button>
             <button data-attr="str"><i class="attr str"></i>Str</button>
             <button data-attr="agi"><i class="attr agi"></i>Agi</button>
             <button data-attr="int"><i class="attr int"></i>Int</button>
             <button data-attr="all"><i class="attr all"></i>Uni</button>
           </div>
-          <select id="role" aria-label="Role"><option value="">Semua role</option></select>
+          <select id="role" aria-label="Role"><option value="">All roles</option></select>
           <select id="bracket" aria-label="Bracket rank">
-            <option value="all">Semua rank</option>
+            <option value="all">All ranks</option>
             <option value="1">Herald</option>
             <option value="2">Guardian</option>
             <option value="3">Crusader</option>
@@ -154,25 +150,25 @@
             <option value="8">Immortal</option>
             <option value="pro">Pro match</option>
           </select>
-          <select id="sort" aria-label="Urutkan">
-            <option value="tier">Urut: Tier meta</option>
-            <option value="win">Urut: Win rate</option>
-            <option value="pick">Urut: Pick rate</option>
-            <option value="name">Urut: Nama</option>
+          <select id="sort" aria-label="Sort">
+            <option value="tier">Sort: Meta tier</option>
+            <option value="win">Sort: Win rate</option>
+            <option value="pick">Sort: Pick rate</option>
+            <option value="name">Sort: Name</option>
           </select>
         </div>
 
         <div class="legend">
-          <span><b class="tier t-S">S</b> Sangat kuat</span>
-          <span><b class="tier t-A">A</b> Kuat</span>
-          <span><b class="tier t-B">B</b> Seimbang</span>
-          <span><b class="tier t-C">C</b> Lemah</span>
-          <span><b class="tier t-D">D</b> Hindari</span>
+          <span><b class="tier t-S">S</b> Very strong</span>
+          <span><b class="tier t-A">A</b> Strong</span>
+          <span><b class="tier t-B">B</b> Balanced</span>
+          <span><b class="tier t-C">C</b> Weak</span>
+          <span><b class="tier t-D">D</b> Avoid</span>
           <span class="count" id="result-count"></span>
         </div>
 
         <div id="grid" class="grid" aria-live="polite"></div>
-        <p class="state" id="grid-empty" hidden>Tidak ada hero yang cocok.</p>
+        <p class="state" id="grid-empty" hidden>No heroes match.</p>
       </section>
     </div>
 
@@ -180,7 +176,7 @@
   </main>
 
   <footer class="wrap foot">
-    Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota</a>. Tier dihitung dari win rate dan pick rate bracket yang dipilih. Dota 2 adalah merek dagang Valve Corporation; situs ini tidak berafiliasi dengan Valve.
+    Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota</a>. Tiers are calculated from win rate and pick rate in the selected bracket. Dota 2 is a trademark of Valve Corporation; this site is not affiliated with Valve.
   </footer>
 
   <script src="vendor/gsap.min.js"></script>
