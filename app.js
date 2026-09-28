@@ -25,6 +25,7 @@
   const hasGsap = typeof window.gsap !== "undefined";
   const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const liteMedia = !finePointer || window.matchMedia("(max-width: 899px)").matches || !!(navigator.connection && navigator.connection.saveData);
   if (hasGsap) gsap.registerPlugin(ScrollTrigger, SplitText, Flip);
 
   const state = { heroes: [], items: {}, attr: "", role: "", bracket: "all", sort: "tier", query: "", meta: null };
@@ -62,9 +63,28 @@
     return v;
   }
 
-  const loadHeroStats = () => cached("d2.heroStats", "/heroStats");
-  const loadPatch = () => cached("d2.patch", "/constants/patch", (list) => list[list.length - 1]);
-  const loadItems = () => cached("d2.items", "/constants/items", (all) => {
+  // A daily snapshot of the API lives in data/ (built by a GitHub Action). Use it when it is fresh,
+  // otherwise fall back to the live API.
+  const snapshot = fetch("data/meta.json", { cache: "no-cache" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((m) => (m && Date.now() - Date.parse(m.generatedAt) < 3 * DAY ? m : null))
+    .catch(() => null);
+
+  async function fromSnapshot(file) {
+    const m = await snapshot;
+    if (!m) return null;
+    try {
+      const res = await fetch(`data/${file}?v=${encodeURIComponent(m.generatedAt)}`);
+      return res.ok ? await res.json() : null;
+    } catch { return null; }
+  }
+
+  const loadHeroStats = async () => (await fromSnapshot("heroStats.json")) || cached("d2.heroStats", "/heroStats");
+  const loadPatch = async () => {
+    const m = await snapshot;
+    return (m && m.patch) || cached("d2.patch", "/constants/patch", (list) => list[list.length - 1]);
+  };
+  const loadItems = async () => (await fromSnapshot("items.json")) || cached("d2.items", "/constants/items", (all) => {
     const byId = {};
     for (const [key, it] of Object.entries(all)) {
       if (!it || it.id == null || key.startsWith("recipe_")) continue;
@@ -128,15 +148,25 @@
 
   // Point a <video> at a hero's animated render; if it can't play, fall back to the static render image.
   function setHeroVideo(video, h) {
-    video.innerHTML = `
-      <source src="${esc(heroVideo(h, "webm"))}" type="video/webm">
-      <source src="${esc(heroVideo(h, "mov"))}" type='video/mp4; codecs="hvc1"'>`;
-    video.poster = heroRender(h);
     video.classList.remove("failed");
     const fail = () => {
       video.classList.add("failed");
       video.style.backgroundImage = `url("${heroRender(h)}"), url("${heroImg(h)}")`;
     };
+    // Phones, touch devices and data saver get the still render instead of a multi-megabyte video.
+    if (liteMedia) {
+      video.removeAttribute("src");
+      video.innerHTML = "";
+      video.poster = heroRender(h);
+      const probe = new Image();
+      probe.onerror = fail;
+      probe.src = heroRender(h);
+      return;
+    }
+    video.innerHTML = `
+      <source src="${esc(heroVideo(h, "webm"))}" type="video/webm">
+      <source src="${esc(heroVideo(h, "mov"))}" type='video/mp4; codecs="hvc1"'>`;
+    video.poster = heroRender(h);
     const lastSource = video.querySelector("source:last-child");
     lastSource.addEventListener("error", fail, { once: true });
     video.load();
@@ -645,9 +675,10 @@
   }
 
   async function loadHeroData(id) {
+    const snap = await fromSnapshot(`heroes/${id}.json`);
     const [pop, mu] = await Promise.allSettled([
-      cached(`d2.pop.${id}`, `/heroes/${id}/itemPopularity`),
-      cached(`d2.mu.${id}`, `/heroes/${id}/matchups`)
+      snap ? snap.itemPopularity : cached(`d2.pop.${id}`, `/heroes/${id}/itemPopularity`),
+      snap ? snap.matchups : cached(`d2.mu.${id}`, `/heroes/${id}/matchups`)
     ]);
     if (location.hash !== `#/hero/${id}`) return; // user navigated away while loading
     const build = $("#build");
@@ -977,7 +1008,14 @@
 
   // ---------- boot ----------
 
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator) || location.protocol !== "https:" && location.hostname !== "localhost") return;
+    const go = () => navigator.serviceWorker.register("sw.js").catch(() => {});
+    if (document.readyState === "complete") go(); else addEventListener("load", go, { once: true });
+  }
+
   async function boot() {
+    registerServiceWorker();
     const loader = startLoader();
     initEmbers();
 

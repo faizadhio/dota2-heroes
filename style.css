@@ -507,3 +507,6 @@ body.has-cursor input { cursor: auto; }
   .gold, .gold .ch { animation: none; background-position: 0 0; }
   .hero-halo::before, .hero-halo::after { animation: none; }
 }
+/* Let the browser skip layout and paint for hero cards that are off screen */
+.grid .card { content-visibility: auto; contain-intrinsic-size: auto 125px; }
+@media (max-width: 899px) { .grid .card { contain-intrinsic-size: auto 165px; } }
