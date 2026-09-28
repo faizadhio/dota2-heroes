@@ -4,7 +4,6 @@
   const API = "https://api.opendota.com/api";
   const CDN = "https://cdn.cloudflare.steamstatic.com";
   const DAY = 24 * 60 * 60 * 1000;
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const BRACKETS = ["1", "2", "3", "4", "5", "6", "7", "8"];
   const BRACKET_NAMES = { 1: "Herald", 2: "Guardian", 3: "Crusader", 4: "Archon", 5: "Legend", 6: "Ancient", 7: "Divine", 8: "Immortal" };
@@ -23,7 +22,13 @@
     "great_famango", "greater_famango", "royal_jelly", "branches"
   ]);
 
-  const state = { heroes: [], items: {}, attr: "", role: "", bracket: "all", sort: "tier", query: "" };
+  const hasGsap = typeof window.gsap !== "undefined";
+  const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (hasGsap) gsap.registerPlugin(ScrollTrigger, SplitText, Flip);
+
+  const state = { heroes: [], items: {}, attr: "", role: "", bracket: "all", sort: "tier", query: "", meta: null };
+  const cards = new Map();
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -115,63 +120,162 @@
   const img = (path) => (path ? CDN + path : "");
   const heroSlug = (h) => h.name.replace("npc_dota_hero_", "");
   const heroImg = (h) => img(h.img) || `${CDN}/apps/dota2/images/dota_react/heroes/${heroSlug(h)}.png`;
+  const heroRender = (h) => `${CDN}/apps/dota2/images/dota_react/heroes/renders/${heroSlug(h)}.png`;
   const heroVideo = (h, ext) => `${CDN}/apps/dota2/videos/dota_react/heroes/renders/${heroSlug(h)}.${ext}`;
   const wrClass = (wr) => (wr >= 0.52 ? "good" : wr <= 0.48 ? "bad" : "");
   const compact = (n) => new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+  const bracketLabel = () => $("#bracket").selectedOptions[0].textContent;
 
-  // Smoothly count a number up inside an element. fmt turns the raw value into display text.
-  function countUp(el, to, fmt = (v) => Math.round(v).toLocaleString("id-ID"), ms = 1200) {
-    if (!el) return;
-    if (reduceMotion) { el.textContent = fmt(to); return; }
-    const from = 0, start = performance.now();
-    const tick = (now) => {
-      const t = Math.min(1, (now - start) / ms);
-      const e = 1 - Math.pow(1 - t, 4);
-      el.textContent = fmt(from + (to - from) * e);
-      if (t < 1) requestAnimationFrame(tick);
+  // Point a <video> at a hero's animated render; if it can't play, fall back to the static render image.
+  function setHeroVideo(video, h) {
+    video.innerHTML = `
+      <source src="${esc(heroVideo(h, "webm"))}" type="video/webm">
+      <source src="${esc(heroVideo(h, "mov"))}" type='video/mp4; codecs="hvc1"'>`;
+    video.poster = heroRender(h);
+    video.classList.remove("failed");
+    const fail = () => {
+      video.classList.add("failed");
+      video.style.backgroundImage = `url("${heroRender(h)}"), url("${heroImg(h)}")`;
     };
-    requestAnimationFrame(tick);
+    const lastSource = video.querySelector("source:last-child");
+    lastSource.addEventListener("error", fail, { once: true });
+    video.load();
+    const p = video.play();
+    if (p && p.catch) p.catch(() => {});
   }
 
-  // Swap view content with the View Transitions API when the browser has it.
-  function transition(fn) {
-    if (!reduceMotion && document.startViewTransition) document.startViewTransition(fn);
-    else fn();
+  function countTo(el, to, fmt = (v) => Math.round(v).toLocaleString("id-ID"), opts = {}) {
+    if (!el) return;
+    if (!hasGsap) { el.textContent = fmt(to); return; }
+    const o = { v: 0 };
+    return gsap.to(o, { v: to, duration: 2, ease: "power3.out", ...opts, onUpdate: () => { el.textContent = fmt(o.v); } });
   }
 
-  // ---------- list view ----------
+  // ---------- intro ----------
 
-  function renderSpotlight(meta) {
-    const top = meta.ranked.filter((r) => r.pick > 0).slice(0, 5);
-    $("#spot-bracket").textContent = $("#bracket").selectedOptions[0].textContent;
-    $("#spotlight").innerHTML = top.map(({ h, wr, pr }, i) => `
-      <a class="spot attr-${esc(h.primary_attr)}" href="#/hero/${h.id}" style="--i:${i}">
-        <img src="${esc(heroImg(h))}" alt="" loading="lazy">
-        <span class="spot-rank">#${i + 1}</span>
-        <span class="spot-info">
-          <b>${esc(h.localized_name)}</b>
-          <small><span class="${wrClass(wr)}">${pct(wr)} WR</span> · ${pct(pr)} PR</small>
-        </span>
+  function renderIntro() {
+    const meta = state.meta;
+    const top = meta.ranked.find((r) => r.pick > 0);
+    if (!top) return;
+    setHeroVideo($("#intro-video"), top.h);
+    $("#intro-hero-link").href = `#/hero/${top.h.id}`;
+    $("#intro-hero-link span").textContent = `${top.h.localized_name}, #1 saat ini`;
+    $("#intro-now").innerHTML = `
+      <span class="now-label">Hero #1 meta</span>
+      <b>${esc(top.h.localized_name)}</b>
+      <span><em class="${wrClass(top.wr)}">${pct(top.wr)}</em> win rate · tier <b class="tier t-${top.tier}">${top.tier}</b></span>`;
+  }
+
+  function renderMarquee() {
+    const heroes = [...state.heroes].sort(() => Math.random() - 0.5);
+    const half = Math.ceil(heroes.length / 2);
+    const row = (list) => {
+      const html = list.map((h) => `<a class="mq attr-${esc(h.primary_attr)}" href="#/hero/${h.id}" tabindex="-1"><img src="${esc(heroImg(h))}" alt="" loading="lazy"><span>${esc(h.localized_name)}</span></a>`).join("");
+      return `<div class="mq-inner">${html}</div><div class="mq-inner">${html}</div>`;
+    };
+    $("#marquee-a").innerHTML = row(heroes.slice(0, half));
+    $("#marquee-b").innerHTML = row(heroes.slice(half));
+  }
+
+  function renderTop() {
+    const top = state.meta.ranked.filter((r) => r.pick > 0).slice(0, 5);
+    $("#top-bracket").textContent = `Top 5 · ${bracketLabel()}`;
+    $("#top-track").innerHTML = top.map(({ h, wr, pr, tier }, i) => `
+      <a class="top-card attr-${esc(h.primary_attr)}" href="#/hero/${h.id}">
+        <span class="top-rank">0${i + 1}</span>
+        <div class="top-art">
+          <div class="top-glow"></div>
+          <video class="top-video" muted loop playsinline preload="none" data-hero="${h.id}" aria-hidden="true"></video>
+        </div>
+        <div class="top-info">
+          <p class="top-attr"><i class="attr ${esc(h.primary_attr)}"></i>${esc(ATTR_NAMES[h.primary_attr] || "")}</p>
+          <h3>${esc(h.localized_name)}</h3>
+          <div class="top-stats">
+            <span><b class="${wrClass(wr)}">${pct(wr)}</b><small>Win rate</small></span>
+            <span><b>${pct(pr)}</b><small>Pick rate</small></span>
+            <span><b class="tier t-${tier}">${tier}</b><small>Tier</small></span>
+          </div>
+          <span class="top-cta">Lihat build <i>→</i></span>
+        </div>
       </a>`).join("");
+
+    // Load each card's hero video only when it comes near the screen.
+    const byId = new Map(state.heroes.map((h) => [h.id, h]));
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const v = e.target;
+        if (e.isIntersecting) {
+          if (!v.dataset.loaded) { v.dataset.loaded = "1"; setHeroVideo(v, byId.get(Number(v.dataset.hero))); }
+          else v.play().catch(() => {});
+        } else if (v.dataset.loaded) v.pause();
+      }
+    }, { rootMargin: "200px" });
+    $$(".top-video").forEach((v) => io.observe(v));
   }
 
-  function renderCounters(meta) {
-    countUp($("#c-heroes"), state.heroes.length);
-    countUp($("#c-picks"), meta.totalPicks, compact);
-    countUp($("#c-s"), meta.ranked.filter((r) => r.tier === "S").length);
+  function renderNumbers(animate) {
+    const meta = state.meta;
+    const best = meta.ranked.filter((r) => r.pick > 0).reduce((m, r) => Math.max(m, r.wr), 0);
+    const vals = [
+      [$("#n-heroes"), state.heroes.length, undefined],
+      [$("#n-picks"), meta.totalPicks, compact],
+      [$("#n-s"), meta.ranked.filter((r) => r.tier === "S").length, undefined],
+      [$("#n-best"), best, (v) => pct(v)]
+    ];
+    for (const [el, to, fmt] of vals) {
+      if (animate) countTo(el, to, fmt, { scrollTrigger: { trigger: el, start: "top 90%" } });
+      else el.textContent = (fmt || ((v) => Math.round(v).toLocaleString("id-ID")))(to);
+    }
   }
 
-  function renderList({ intro = false } = {}) {
-    const meta = computeMeta(state.bracket);
-    if (intro) { renderSpotlight(meta); renderCounters(meta); }
+  // ---------- hero grid ----------
 
+  function buildCards() {
+    const grid = $("#grid");
+    grid.innerHTML = "";
+    for (const h of state.heroes) {
+      const a = document.createElement("a");
+      a.className = `card attr-${h.primary_attr}`;
+      a.href = `#/hero/${h.id}`;
+      a.dataset.id = h.id;
+      a.innerHTML = `
+        <div class="card-img">
+          <img src="${esc(heroImg(h))}" alt="" loading="lazy">
+          <b class="tier"></b>
+        </div>
+        <div class="card-body">
+          <div class="card-name"><i class="attr ${esc(h.primary_attr)}"></i>${esc(h.localized_name)}</div>
+          <div class="card-stats">
+            <span class="c-wr" title="Win rate"></span>
+            <span class="c-pr" title="Pick rate"></span>
+          </div>
+          <span class="wr-line"><i></i></span>
+        </div>
+        <span class="glare" aria-hidden="true"></span>`;
+      grid.appendChild(a);
+      cards.set(h.id, a);
+    }
+  }
+
+  function updateCards() {
+    for (const [id, el] of cards) {
+      const r = state.meta.get(id);
+      el.classList.remove("tier-S", "tier-A", "tier-B", "tier-C", "tier-D");
+      el.classList.add(`tier-${r.tier}`);
+      const t = $(".tier", el);
+      t.className = `tier t-${r.tier}`;
+      t.textContent = r.tier;
+      const wr = $(".c-wr", el);
+      wr.className = `c-wr ${wrClass(r.wr)}`;
+      wr.innerHTML = `${pct(r.wr)} <small>WR</small>`;
+      $(".c-pr", el).innerHTML = `${pct(r.pr)} <small>PR</small>`;
+      $(".wr-line i", el).style.setProperty("--w", Math.max(0, Math.min(1, (r.wr - 0.4) / 0.2)));
+    }
+  }
+
+  function applyFilters({ animate = true } = {}) {
     const q = state.query.trim().toLowerCase();
-    const rows = state.heroes
-      .filter((h) => !state.attr || h.primary_attr === state.attr)
-      .filter((h) => !state.role || (h.roles || []).includes(state.role))
-      .filter((h) => !q || h.localized_name.toLowerCase().includes(q))
-      .map((h) => meta.get(h.id));
-
+    const rows = state.heroes.map((h) => state.meta.get(h.id));
     const sorters = {
       tier: (a, b) => b.score - a.score,
       win: (a, b) => b.wr - a.wr,
@@ -179,34 +283,44 @@
       name: (a, b) => a.h.localized_name.localeCompare(b.h.localized_name)
     };
     rows.sort(sorters[state.sort]);
-    $("#result-count").textContent = `${rows.length} hero`;
+    const show = (h) => (!state.attr || h.primary_attr === state.attr)
+      && (!state.role || (h.roles || []).includes(state.role))
+      && (!q || h.localized_name.toLowerCase().includes(q));
 
+    const els = [...cards.values()];
+    const flipState = animate && hasGsap ? Flip.getState(els) : null;
     const grid = $("#grid");
-    if (!rows.length) { grid.innerHTML = `<p class="state">Tidak ada hero yang cocok.</p>`; return; }
-    grid.innerHTML = rows.map(({ h, wr, pr, tier }, i) => `
-      <a class="card attr-${esc(h.primary_attr)} tier-${tier}" href="#/hero/${h.id}" style="--i:${Math.min(i, 24)}">
-        <div class="card-img">
-          <img src="${esc(heroImg(h))}" alt="" loading="lazy">
-          <b class="tier t-${tier}">${tier}</b>
-        </div>
-        <div class="card-body">
-          <div class="card-name"><i class="attr ${esc(h.primary_attr)}" title="${esc(ATTR_NAMES[h.primary_attr])}"></i>${esc(h.localized_name)}</div>
-          <div class="card-stats">
-            <span class="${wrClass(wr)}" title="Win rate">${pct(wr)} <small>WR</small></span>
-            <span title="Pick rate">${pct(pr)} <small>PR</small></span>
-          </div>
-          <span class="wr-line"><i style="--w:${Math.max(0, Math.min(1, (wr - 0.4) / 0.2))}"></i></span>
-        </div>
-        <span class="glare" aria-hidden="true"></span>
-      </a>`).join("");
+    let shown = 0;
+    for (const r of rows) {
+      const el = cards.get(r.h.id);
+      const on = show(r.h);
+      el.style.display = on ? "" : "none";
+      if (on) shown++;
+      grid.appendChild(el);
+    }
+    $("#result-count").textContent = `${shown} hero`;
+    $("#grid-empty").hidden = shown > 0;
+
+    if (flipState) {
+      Flip.from(flipState, {
+        duration: 0.7,
+        ease: "power3.inOut",
+        absolute: true,
+        stagger: 0.008,
+        onEnter: (e) => gsap.fromTo(e, { opacity: 0, scale: 0.6, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: "back.out(1.6)", stagger: 0.015 }),
+        onLeave: (e) => gsap.to(e, { opacity: 0, scale: 0.6, duration: 0.4, ease: "power2.in" }),
+        onComplete: () => ScrollTrigger.refresh()
+      });
+    }
   }
 
-  function moveSegThumb() {
+  function moveSegThumb(animate = true) {
     const on = $("#attr-filter button.on");
     const thumb = $(".seg-thumb");
     if (!on || !thumb) return;
-    thumb.style.width = `${on.offsetWidth}px`;
-    thumb.style.transform = `translateX(${on.offsetLeft - 3}px)`;
+    const props = { width: on.offsetWidth, x: on.offsetLeft - 3 };
+    if (hasGsap && animate) gsap.to(thumb, { ...props, duration: 0.5, ease: "back.out(1.7)" });
+    else if (hasGsap) gsap.set(thumb, props);
   }
 
   function initFilters() {
@@ -217,56 +331,33 @@
     $("#search").addEventListener("input", (e) => {
       state.query = e.target.value;
       clearTimeout(t);
-      t = setTimeout(() => renderList(), 120);
+      t = setTimeout(() => applyFilters(), 150);
     });
-    $("#role").addEventListener("change", (e) => { state.role = e.target.value; renderList(); });
-    $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; renderList(); });
-    $("#bracket").addEventListener("change", (e) => { state.bracket = e.target.value; renderList({ intro: true }); });
+    $("#role").addEventListener("change", (e) => { state.role = e.target.value; applyFilters(); });
+    $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; applyFilters(); });
+    $("#bracket").addEventListener("change", (e) => {
+      state.bracket = e.target.value;
+      state.meta = computeMeta(state.bracket);
+      updateCards();
+      applyFilters();
+      renderTop();
+      renderIntro();
+      renderNumbers(false);
+      ScrollTrigger.refresh();
+    });
     $("#attr-filter").addEventListener("click", (e) => {
       const btn = e.target.closest("button");
       if (!btn) return;
       state.attr = btn.dataset.attr;
       for (const b of $$("#attr-filter button")) b.classList.toggle("on", b === btn);
       moveSegThumb();
-      renderList();
+      applyFilters();
     });
-    window.addEventListener("resize", moveSegThumb);
-    moveSegThumb();
+    window.addEventListener("resize", () => moveSegThumb(false));
+    moveSegThumb(false);
   }
 
-  // 3D tilt and a moving glare that follows the pointer on cards.
-  function initTilt() {
-    if (reduceMotion || !window.matchMedia("(hover: hover)").matches) return;
-    let active = null;
-    document.addEventListener("pointermove", (e) => {
-      const card = e.target.closest(".card, .spot");
-      if (active && active !== card) { active.style.removeProperty("--rx"); active.style.removeProperty("--ry"); }
-      active = card;
-      if (!card) return;
-      const r = card.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width;
-      const y = (e.clientY - r.top) / r.height;
-      card.style.setProperty("--rx", `${(0.5 - y) * 12}deg`);
-      card.style.setProperty("--ry", `${(x - 0.5) * 14}deg`);
-      card.style.setProperty("--mx", `${x * 100}%`);
-      card.style.setProperty("--my", `${y * 100}%`);
-    });
-  }
-
-  // ---------- hero view ----------
-
-  function itemTile(id, count, max, i) {
-    const it = state.items[id];
-    if (!it) return "";
-    return `
-      <div class="item" style="--i:${i}" title="${esc(it.name)}${it.cost ? ` · ${it.cost} gold` : ""}">
-        <img src="${esc(img(it.img))}" alt="${esc(it.name)}" loading="lazy">
-        <div class="item-meta">
-          <span class="item-name">${esc(it.name)}${it.cost ? `<small>${it.cost}</small>` : ""}</span>
-          <span class="bar"><i style="--w:${Math.max(0.06, count / max)}"></i></span>
-        </div>
-      </div>`;
-  }
+  // ---------- hero page ----------
 
   function topItems(phaseData, { skipConsumables }) {
     return Object.entries(phaseData || {})
@@ -292,21 +383,27 @@
     const total = core.reduce((s, id) => s + (state.items[id].cost || 0), 0);
     const coreHtml = core.length ? `
       <div class="core">
-        <div class="core-head"><h3>Build inti</h3><span class="gold"><i></i>${total.toLocaleString("id-ID")} gold</span></div>
+        <div class="core-head"><h3>Build inti</h3><span class="gold-total"><i></i><b data-gold="${total}">0</b> gold</span></div>
         <div class="core-row">
-          <span class="core-line" aria-hidden="true"></span>
+          <svg class="core-path" preserveAspectRatio="none" viewBox="0 0 100 10" aria-hidden="true"><path d="M0 5 H100"/></svg>
           ${core.map((id, i) => {
             const it = state.items[id];
-            return `<figure style="--i:${i}" title="${esc(it.name)} · ${it.cost} gold"><span class="core-step">${i + 1}</span><img src="${esc(img(it.img))}" alt="${esc(it.name)}"><figcaption>${esc(it.name)}</figcaption></figure>`;
+            return `<figure title="${esc(it.name)} · ${it.cost} gold"><span class="core-step">${i + 1}</span><div class="core-img"><img src="${esc(img(it.img))}" alt="${esc(it.name)}"></div><figcaption>${esc(it.name)}<small>${it.cost.toLocaleString("id-ID")}</small></figcaption></figure>`;
           }).join("")}
         </div>
       </div>` : "";
 
-    const phases = PHASES.map(([key, title, sub], p) => {
+    const phases = PHASES.map(([key, title, sub]) => {
       const list = topItems(pop[key], { skipConsumables: key !== "start_game_items" }).slice(0, 6);
       if (!list.length) return "";
       const max = list[0][1];
-      return `<div class="phase" style="--p:${p}"><h4><span class="phase-dot"></span>${title}<small>${sub}</small></h4>${list.map(([id, n], i) => itemTile(id, n, max, i + p * 2)).join("")}</div>`;
+      return `<div class="phase"><h4><span class="phase-dot"></span>${title}<small>${sub}</small></h4>${list.map(([id, n]) => {
+        const it = state.items[id];
+        return `<div class="item" title="${esc(it.name)}${it.cost ? ` · ${it.cost} gold` : ""}">
+          <img src="${esc(img(it.img))}" alt="${esc(it.name)}" loading="lazy">
+          <div class="item-meta"><span class="item-name">${esc(it.name)}${it.cost ? `<small>${it.cost}</small>` : ""}</span><span class="bar"><i style="--w:${Math.max(0.06, n / max)}"></i></span></div>
+        </div>`;
+      }).join("")}</div>`;
     }).join("");
 
     return coreHtml + `<div class="phases">${phases || '<p class="state">Belum ada data item untuk hero ini.</p>'}</div>`;
@@ -319,8 +416,8 @@
       .map((m) => ({ h: byId.get(m.hero_id), wr: m.wins / m.games_played, n: m.games_played }));
     if (rows.length < 4) return `<p class="state">Data matchup belum cukup.</p>`;
     rows.sort((a, b) => b.wr - a.wr);
-    const list = (arr) => arr.map(({ h, wr, n }, i) => `
-      <a class="mu" href="#/hero/${h.id}" title="${n} game" style="--i:${i}">
+    const list = (arr) => arr.map(({ h, wr, n }) => `
+      <a class="mu" href="#/hero/${h.id}" title="${n} game">
         <img src="${esc(heroImg(h))}" alt="" loading="lazy"><span>${esc(h.localized_name)}</span><b class="${wrClass(wr)}">${pct(wr, 0)}</b>
       </a>`).join("");
     return `
@@ -331,16 +428,15 @@
   }
 
   function renderBracketBars(h) {
-    const rows = BRACKETS.map((b) => {
+    return `<div class="brackets">${BRACKETS.map((b) => {
       const { pick, win } = bracketStats(h, b);
-      return { b, wr: pick ? win / pick : 0 };
-    });
-    return `<div class="brackets">${rows.map(({ b, wr }, i) => `
-      <div class="br" title="${BRACKET_NAMES[b]}: ${pct(wr)}" style="--i:${i}">
+      const wr = pick ? win / pick : 0;
+      return `<div class="br" title="${BRACKET_NAMES[b]}: ${pct(wr)}">
         <span class="br-bar ${wrClass(wr)}"><i style="--h:${Math.max(0.04, Math.min(1, (wr - 0.4) / 0.2))}"></i></span>
         <span class="br-val">${pct(wr, 0)}</span>
         <span class="br-name">${BRACKET_NAMES[b].slice(0, 3)}</span>
-      </div>`).join("")}</div>`;
+      </div>`;
+    }).join("")}</div>`;
   }
 
   function ring(wr) {
@@ -349,186 +445,393 @@
       <div class="ring ${wrClass(wr)}">
         <svg viewBox="0 0 120 120" aria-hidden="true">
           <circle class="ring-bg" cx="60" cy="60" r="52"/>
-          <circle class="ring-fg" cx="60" cy="60" r="52" style="--c:${c};--off:${c * (1 - wr)}"/>
+          <circle class="ring-fg" cx="60" cy="60" r="52" style="stroke-dasharray:${c};stroke-dashoffset:${c}" data-off="${c * (1 - wr)}"/>
         </svg>
-        <div class="ring-val"><b data-to="${wr}">0%</b><small>Win rate</small></div>
+        <div class="ring-val"><b data-to="${wr}" data-fmt="pct">0%</b><small>Win rate</small></div>
       </div>`;
   }
 
-  async function showHero(id) {
+  let heroCtx = null;
+
+  function renderHero(id) {
     const h = state.heroes.find((x) => x.id === id);
     const view = $("#hero-view");
-    if (!h) {
-      view.innerHTML = `<a class="back" href="#/">‹ Semua hero</a><p class="state">Hero tidak ditemukan.</p>`;
-      $("#list-view").hidden = true;
-      view.hidden = false;
-      return;
-    }
-
+    if (!h) { view.innerHTML = `<div class="wrap"><a class="back" href="#/">‹ Semua hero</a><p class="state">Hero tidak ditemukan.</p></div>`; return null; }
     document.title = `${h.localized_name} · Dota 2 Meta`;
-    const meta = computeMeta(state.bracket).get(h.id);
-    const bracketLabel = $("#bracket").selectedOptions[0].textContent;
+    const meta = state.meta.get(h.id);
 
     view.innerHTML = `
-      <a class="back" href="#/"><span>‹</span> Semua hero</a>
-      <div class="hero-head attr-${esc(h.primary_attr)}">
-        <div class="hero-art">
-          <span class="hero-halo" aria-hidden="true"></span>
-          <video class="hero-video" autoplay muted loop playsinline preload="auto" poster="${esc(heroImg(h))}" aria-hidden="true">
-            <source src="${esc(heroVideo(h, "webm"))}" type="video/webm">
-            <source src="${esc(heroVideo(h, "mov"))}" type='video/mp4; codecs="hvc1"'>
-          </video>
-        </div>
-        <div class="hero-info">
-          <p class="hero-sub"><i class="attr ${esc(h.primary_attr)}"></i>${esc(ATTR_NAMES[h.primary_attr] || h.primary_attr)} · ${esc(h.attack_type)}</p>
-          <h1 class="hero-name">${[...h.localized_name].map((ch, i) => `<span style="--i:${i}">${ch === " " ? "&nbsp;" : esc(ch)}</span>`).join("")}</h1>
-          <div class="roles">${(h.roles || []).map((r, i) => `<span style="--i:${i}">${esc(r)}</span>`).join("")}</div>
-          <div class="hero-stats">
-            ${ring(meta.wr)}
-            <div class="kpis">
-              <div class="kpi-tier"><b class="tier t-${meta.tier}">${meta.tier}</b><small>Tier · ${esc(bracketLabel)}</small></div>
-              <div><b data-to="${meta.pr}" data-fmt="pct">0%</b><small>Pick rate</small></div>
-              <div><b data-to="${meta.rank}" data-fmt="rank">#0</b><small>dari ${state.heroes.length} hero</small></div>
-              ${h.pro_ban != null ? `<div><b data-to="${h.pro_ban}">0</b><small>Ban di pro match</small></div>` : ""}
+      <section class="hero-stage attr-${esc(h.primary_attr)}">
+        <div class="hero-bgname" aria-hidden="true"><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span></div>
+        <div class="wrap hero-grid">
+          <a class="back magnetic" href="#/"><span>←</span> Semua hero</a>
+          <div class="hero-art">
+            <div class="hero-halo"></div>
+            <video class="hero-video" muted loop playsinline preload="auto" aria-hidden="true"></video>
+          </div>
+          <div class="hero-info">
+            <p class="hero-sub"><i class="attr ${esc(h.primary_attr)}"></i>${esc(ATTR_NAMES[h.primary_attr] || h.primary_attr)} · ${esc(h.attack_type)}</p>
+            <h1 class="hero-name">${esc(h.localized_name)}</h1>
+            <div class="roles">${(h.roles || []).map((r) => `<span>${esc(r)}</span>`).join("")}</div>
+            <div class="hero-stats">
+              ${ring(meta.wr)}
+              <div class="kpis">
+                <div><b class="tier t-${meta.tier}">${meta.tier}</b><small>Tier · ${esc(bracketLabel())}</small></div>
+                <div><b data-to="${meta.pr}" data-fmt="pct">0%</b><small>Pick rate</small></div>
+                <div><b data-to="${meta.rank}" data-fmt="rank">#0</b><small>dari ${state.heroes.length} hero</small></div>
+                ${h.pro_ban != null ? `<div><b data-to="${h.pro_ban}">0</b><small>Ban di pro match</small></div>` : ""}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="panels">
-        <section class="panel build reveal">
+      <div class="wrap panels">
+        <section class="panel build">
           <h2>Item build</h2>
           <p class="hint">Item yang paling sering dibeli pemain ${esc(h.localized_name)} di pertandingan terbaru. Bar menunjukkan popularitas relatif.</p>
-          <div id="build">${skeletonBuild()}</div>
+          <div id="build"><div class="skeleton skel-core"></div><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(6)}</div></div>
         </section>
         <aside class="side">
-          <section class="panel reveal">
+          <section class="panel">
             <h2>Win rate per rank</h2>
             ${renderBracketBars(h)}
           </section>
-          <section class="panel reveal">
+          <section class="panel">
             <h2>Matchup</h2>
             <p class="hint">Dari pertandingan pro, minimal 10 game.</p>
-            <div id="matchups">${skeletonRows(5)}</div>
+            <div id="matchups"><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(5)}</div></div>
           </section>
         </aside>
       </div>`;
 
-    $("#list-view").hidden = true;
-    view.hidden = false;
-    window.scrollTo({ top: 0 });
+    setHeroVideo($(".hero-video", view), h);
+    return h;
+  }
 
-    // A hero render video that fails to load just leaves the poster image in place.
-    const video = $(".hero-video", view);
-    video.addEventListener("error", () => video.classList.add("no-video"), true);
-    video.addEventListener("loadeddata", () => video.classList.add("playing"));
+  function animateHeroIn(view) {
+    if (!hasGsap) return;
+    heroCtx && heroCtx.revert();
+    heroCtx = gsap.context(() => {
+      const name = new SplitText(".hero-name", { type: "chars", charsClass: "ch" });
+      const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
+      tl.from(".hero-art", { xPercent: -30, opacity: 0, scale: 0.85, filter: "blur(20px)", duration: 1.4 })
+        .from(".hero-halo", { scale: 0, opacity: 0, duration: 1.6 }, 0)
+        .from(".hero-sub", { y: 30, opacity: 0, duration: 0.8 }, 0.2)
+        .from(name.chars, { yPercent: 120, rotate: 12, opacity: 0, duration: 1.1, stagger: 0.04 }, 0.25)
+        .from(".roles span", { y: 20, opacity: 0, scale: 0.7, duration: 0.7, ease: "back.out(2)", stagger: 0.06 }, 0.6)
+        .from(".ring, .kpis > div", { y: 40, opacity: 0, duration: 0.9, stagger: 0.08 }, 0.7)
+        .from(".back", { x: -30, opacity: 0, duration: 0.8 }, 0.3);
 
-    for (const el of $$("[data-to]", view)) {
-      const to = Number(el.dataset.to);
-      const fmt = el.dataset.fmt === "rank" ? (v) => `#${Math.max(1, Math.round(v))}`
-        : el.dataset.fmt === "pct" || el.closest(".ring") ? (v) => pct(v)
-        : (v) => Math.round(v).toLocaleString("id-ID");
-      countUp(el, to, fmt, 1400);
-    }
-    observeReveals(view);
+      const fg = $(".ring-fg", view);
+      tl.to(fg, { strokeDashoffset: Number(fg.dataset.off), duration: 2, ease: "power3.out" }, 0.9);
+      for (const el of $$("[data-to]", view)) {
+        const to = Number(el.dataset.to);
+        const fmt = el.dataset.fmt === "rank" ? (v) => `#${Math.max(1, Math.round(v))}`
+          : el.dataset.fmt === "pct" ? (v) => pct(v) : (v) => Math.round(v).toLocaleString("id-ID");
+        tl.add(countTo(el, to, fmt, { duration: 2 }), 0.9);
+      }
 
+      gsap.to(".hero-bgname span", { xPercent: -100, repeat: -1, duration: 40, ease: "none" });
+      gsap.to(".hero-art", { yPercent: 18, ease: "none", scrollTrigger: { trigger: ".hero-stage", start: "top top", end: "bottom top", scrub: true } });
+
+      gsap.from(".panel", { y: 80, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.12, scrollTrigger: { trigger: ".panels", start: "top 85%" } });
+      gsap.from(".br-bar i", { scaleY: 0, duration: 1.2, ease: "elastic.out(1, 0.6)", stagger: 0.06, scrollTrigger: { trigger: ".brackets", start: "top 85%" } });
+    }, view);
+  }
+
+  function animateBuildIn(root) {
+    if (!hasGsap || !heroCtx) return;
+    heroCtx.add(() => {
+      const tl = gsap.timeline({ scrollTrigger: { trigger: root, start: "top 80%" } });
+      const path = $(".core-path path", root);
+      if (path) tl.from(path, { attr: { d: "M0 5 H0" }, duration: 1.4, ease: "power2.inOut" }, 0);
+      tl.from($$(".core figure", root), { y: 60, opacity: 0, rotate: -8, scale: 0.6, duration: 0.9, ease: "back.out(1.8)", stagger: 0.12 }, 0.1);
+      const gold = $("[data-gold]", root);
+      if (gold) tl.add(countTo(gold, Number(gold.dataset.gold), (v) => Math.round(v).toLocaleString("id-ID"), { duration: 1.6 }), 0.3);
+      $$(".phase", root).forEach((phase) => {
+        const t = gsap.timeline({ scrollTrigger: { trigger: phase, start: "top 88%" } });
+        t.from($("h4", phase), { x: -30, opacity: 0, duration: 0.6, ease: "power3.out" })
+          .from($$(".item", phase), { x: -40, opacity: 0, duration: 0.6, ease: "power3.out", stagger: 0.06 }, 0.1)
+          .from($$(".bar i", phase), { scaleX: 0, duration: 1, ease: "power3.out", stagger: 0.06 }, 0.3);
+      });
+    });
+    ScrollTrigger.refresh();
+  }
+
+  function animateMatchupsIn(root) {
+    if (!hasGsap || !heroCtx) return;
+    heroCtx.add(() => {
+      gsap.from($$(".mu", root), { x: 30, opacity: 0, duration: 0.6, ease: "power3.out", stagger: 0.05, scrollTrigger: { trigger: root, start: "top 90%" } });
+    });
+  }
+
+  async function loadHeroData(id) {
     const [pop, mu] = await Promise.allSettled([
       cached(`d2.pop.${id}`, `/heroes/${id}/itemPopularity`),
       cached(`d2.mu.${id}`, `/heroes/${id}/matchups`)
     ]);
     if (location.hash !== `#/hero/${id}`) return; // user navigated away while loading
-    $("#build").innerHTML = pop.status === "fulfilled" ? renderBuild(pop.value) : errorBox(pop.reason);
-    $("#matchups").innerHTML = mu.status === "fulfilled" ? renderMatchups(mu.value) : errorBox(mu.reason);
+    const build = $("#build");
+    build.innerHTML = pop.status === "fulfilled" ? renderBuild(pop.value) : errorBox(pop.reason);
+    animateBuildIn(build);
+    const mus = $("#matchups");
+    mus.innerHTML = mu.status === "fulfilled" ? renderMatchups(mu.value) : errorBox(mu.reason);
+    animateMatchupsIn(mus);
   }
 
-  const skeletonRows = (n) => `<div class="skel-rows">${'<span class="skeleton"></span>'.repeat(n)}</div>`;
-  const skeletonBuild = () => `<div class="skeleton skel-core"></div>${skeletonRows(6)}`;
+  // ---------- routing with a page wipe ----------
+
+  let current = null;
+  let listScroll = 0;
+
+  function wipe(swap) {
+    if (!hasGsap) { swap(); return; }
+    const bars = $$(".wipe i");
+    gsap.timeline()
+      .set(".wipe", { display: "grid" })
+      .fromTo(bars, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: 0.55, ease: "power4.in", stagger: 0.06 })
+      .add(() => swap())
+      .to(bars, { scaleY: 0, transformOrigin: "50% 0%", duration: 0.7, ease: "power4.out", stagger: 0.06 }, "+=0.1")
+      .set(".wipe", { display: "none" });
+  }
+
+  function scrollToY(y) {
+    if (lenis) lenis.scrollTo(y, { immediate: true });
+    else window.scrollTo(0, y);
+  }
 
   function showList() {
     document.title = "Dota 2 Meta · Hero & Item Build";
+    heroCtx && heroCtx.revert();
+    heroCtx = null;
     $("#hero-view").hidden = true;
     $("#hero-view").innerHTML = "";
     $("#list-view").hidden = false;
-    renderList();
-    requestAnimationFrame(moveSegThumb);
+    ScrollTrigger.refresh();
+    scrollToY(listScroll);
+    moveSegThumb(false);
+    const v = $("#intro-video");
+    if (v.paused) v.play().catch(() => {});
   }
 
-  let firstRoute = true;
-  function route() {
+  function showHero(id) {
+    if (current === "list") listScroll = window.scrollY;
+    $("#intro-video").pause();
+    const h = renderHero(id);
+    $("#list-view").hidden = true;
+    $("#hero-view").hidden = false;
+    scrollToY(0);
+    ScrollTrigger.refresh();
+    if (!h) return;
+    animateHeroIn($("#hero-view"));
+    loadHeroData(id);
+  }
+
+  function route(first = false) {
     const m = location.hash.match(/^#\/hero\/(\d+)/);
-    const go = () => (m ? showHero(Number(m[1])) : showList());
-    if (firstRoute) { firstRoute = false; go(); } else transition(go);
+    const next = m ? `hero:${m[1]}` : "list";
+    if (next === current) return;
+    const go = () => { m ? showHero(Number(m[1])) : showList(); current = next; };
+    if (first) go(); else wipe(go);
   }
 
   const errorBox = (err) => `<p class="state error">Gagal memuat data (${esc(err && err.message)}). OpenDota membatasi 60 request per menit, coba lagi sebentar lagi.</p>`;
 
-  // ---------- ambient effects ----------
+  // ---------- list page motion ----------
 
-  function observeReveals(root = document) {
-    const els = $$(".reveal:not(.in)", root);
-    if (reduceMotion || !("IntersectionObserver" in window)) { els.forEach((el) => el.classList.add("in")); return; }
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    }, { threshold: 0.12 });
-    els.forEach((el) => io.observe(el));
+  function animateListIn() {
+    if (!hasGsap) return;
+    const title = new SplitText(".intro-title .split", { type: "chars", charsClass: "ch" });
+    const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
+    tl.from(".intro-media", { scale: 1.3, opacity: 0, filter: "blur(30px)", duration: 2 }, 0)
+      .from(".intro-outline", { yPercent: 40, opacity: 0, duration: 2 }, 0)
+      .from(".intro .eyebrow", { y: 20, opacity: 0, duration: 1 }, 0.2)
+      .from(title.chars, { yPercent: 130, rotateX: -90, opacity: 0, duration: 1.3, stagger: 0.035, transformOrigin: "50% 100%" }, 0.25)
+      .from(".intro-lead", { y: 30, opacity: 0, duration: 1 }, 0.8)
+      .from(".intro-actions .btn", { y: 30, opacity: 0, duration: 1, stagger: 0.1 }, 0.95)
+      .from(".intro-now", { x: 40, opacity: 0, duration: 1 }, 1.1)
+      .from(".top", { y: -80, opacity: 0, duration: 1 }, 0.4)
+      .from(".scroll-cue", { opacity: 0, duration: 1 }, 1.4);
+
+    // Intro parallax: video drifts and zooms, the title lifts away.
+    gsap.to(".intro-media", { yPercent: 25, scale: 1.15, ease: "none", scrollTrigger: { trigger: ".intro", start: "top top", end: "bottom top", scrub: true } });
+    gsap.to(".intro-content", { yPercent: -30, opacity: 0, ease: "none", scrollTrigger: { trigger: ".intro", start: "30% top", end: "bottom top", scrub: true } });
+    gsap.to(".intro-outline", { xPercent: -25, ease: "none", scrollTrigger: { trigger: ".intro", start: "top top", end: "bottom top", scrub: true } });
+
+    // Marquee rows loop forever and speed up with scroll velocity.
+    const loops = $$(".marquee-row").map((row, i) => {
+      const dir = row.classList.contains("reverse") ? 1 : -1;
+      return gsap.fromTo($$(".mq-inner", row), { xPercent: dir < 0 ? 0 : -100 }, { xPercent: dir < 0 ? -100 : 0, duration: 60 + i * 10, ease: "none", repeat: -1 });
+    });
+    let skew = 0;
+    ScrollTrigger.create({
+      onUpdate: (self) => {
+        const v = self.getVelocity();
+        const boost = 1 + Math.min(4, Math.abs(v) / 400);
+        loops.forEach((l) => gsap.to(l, { timeScale: boost * (v < 0 ? -1 : 1), duration: 0.3, overwrite: true, onComplete: () => gsap.to(l, { timeScale: v < 0 ? -1 : 1, duration: 1.2 }) }));
+        const s = gsap.utils.clamp(-8, 8, v / -250);
+        if (Math.abs(s - skew) > 0.3) { skew = s; gsap.to(".mq", { skewX: s, duration: 0.4, overwrite: true, onComplete: () => gsap.to(".mq", { skewX: 0, duration: 0.8 }) }); }
+      }
+    });
+    gsap.from(".marquee", { opacity: 0, y: 60, duration: 1.2, ease: "power3.out", scrollTrigger: { trigger: ".marquee", start: "top 90%" } });
+
+    // Section titles reveal word by word.
+    $$(".split-words").forEach((el) => {
+      const s = new SplitText(el, { type: "words", wordsClass: "w" });
+      gsap.from(s.words, { yPercent: 110, opacity: 0, rotate: 4, duration: 1, ease: "expo.out", stagger: 0.06, scrollTrigger: { trigger: el, start: "top 85%" } });
+    });
+    $$(".eyebrow").forEach((el) => gsap.from($(".line", el), { scaleX: 0, transformOrigin: "0 50%", duration: 1, ease: "expo.out", scrollTrigger: { trigger: el, start: "top 90%" } }));
+
+    // Top 5: pinned horizontal scroll on wide screens, swipe row on phones.
+    const mm = gsap.matchMedia();
+    mm.add("(min-width: 900px)", () => {
+      const track = $("#top-track");
+      const dist = () => track.scrollWidth - window.innerWidth + 48;
+      const tween = gsap.to(track, {
+        x: () => -dist(),
+        ease: "none",
+        scrollTrigger: { trigger: ".top-pin", pin: true, start: "top top", end: () => `+=${dist()}`, scrub: 1, invalidateOnRefresh: true, anticipatePin: 1 }
+      });
+      $$(".top-card").forEach((card) => {
+        gsap.from($(".top-art", card), { scale: 0.6, rotate: -6, opacity: 0.2, ease: "none", scrollTrigger: { trigger: card, containerAnimation: tween, start: "left right", end: "center center", scrub: true } });
+        gsap.from($(".top-rank", card), { yPercent: 60, opacity: 0, ease: "none", scrollTrigger: { trigger: card, containerAnimation: tween, start: "left right", end: "left center", scrub: true } });
+      });
+    });
+    mm.add("(max-width: 899px)", () => {
+      gsap.from(".top-card", { y: 80, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.12, scrollTrigger: { trigger: "#top-track", start: "top 85%" } });
+    });
+
+    gsap.from(".num", { y: 60, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.1, scrollTrigger: { trigger: ".numbers", start: "top 85%" } });
+    gsap.from(".controls, .legend", { y: 40, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.1, scrollTrigger: { trigger: ".controls", start: "top 90%" } });
+
+    // Hero cards flip in, batch by batch, as they scroll into view.
+    gsap.set(".card", { opacity: 0, y: 80, rotateX: -35, scale: 0.9 });
+    ScrollTrigger.batch(".card", {
+      start: "top 92%",
+      once: true,
+      onEnter: (batch) => gsap.to(batch, { opacity: 1, y: 0, rotateX: 0, scale: 1, duration: 0.9, ease: "expo.out", stagger: 0.05, clearProps: "transform,opacity" })
+    });
   }
 
-  function initScrollProgress() {
+  // ---------- ambient ----------
+
+  let lenis = null;
+  function initSmoothScroll() {
+    if (!window.Lenis || reduceMotion) return;
+    lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
+    lenis.on("scroll", ScrollTrigger.update);
+    gsap.ticker.add((t) => lenis.raf(t * 1000));
+    gsap.ticker.lagSmoothing(0);
+  }
+
+  function initScrollUi() {
     const bar = $(".progress");
     const header = $(".top");
     const onScroll = () => {
       const max = document.documentElement.scrollHeight - innerHeight;
       bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
-      header.classList.toggle("scrolled", scrollY > 8);
+      header.classList.toggle("scrolled", scrollY > 20);
     };
     addEventListener("scroll", onScroll, { passive: true });
     onScroll();
+
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest("[data-scroll]");
+      if (!a) return;
+      e.preventDefault();
+      const go = () => {
+        const target = $(a.dataset.scroll);
+        if (!target) return;
+        if (lenis) lenis.scrollTo(target, { offset: -70, duration: 1.6 });
+        else target.scrollIntoView({ behavior: "smooth" });
+      };
+      if (current !== "list") { location.hash = "#/"; setTimeout(go, 1400); } else go();
+    });
+  }
+
+  // Cursor follower that grows over links and shows a label over hero cards.
+  function initCursor() {
+    if (!finePointer || !hasGsap) { $(".cursor").remove(); return; }
+    document.body.classList.add("has-cursor");
+    const dot = $(".cursor-dot"), ringEl = $(".cursor-ring"), label = $(".cursor-ring span");
+    const xd = gsap.quickTo(dot, "x", { duration: 0.1 }), yd = gsap.quickTo(dot, "y", { duration: 0.1 });
+    const xr = gsap.quickTo(ringEl, "x", { duration: 0.45, ease: "power3" }), yr = gsap.quickTo(ringEl, "y", { duration: 0.45, ease: "power3" });
+    addEventListener("pointermove", (e) => {
+      xd(e.clientX); yd(e.clientY); xr(e.clientX); yr(e.clientY);
+      const card = e.target.closest(".card, .top-card, .mq");
+      const link = e.target.closest("a, button, select, input, label");
+      document.body.classList.toggle("cursor-view", !!card);
+      document.body.classList.toggle("cursor-link", !card && !!link);
+      label.textContent = card ? "Lihat" : "";
+    });
+    document.addEventListener("mouseleave", () => gsap.to(".cursor", { opacity: 0 }));
+    document.addEventListener("mouseenter", () => gsap.to(".cursor", { opacity: 1 }));
+  }
+
+  function initMagnetic() {
+    if (!finePointer || !hasGsap) return;
+    document.addEventListener("pointermove", (e) => {
+      for (const el of $$(".magnetic")) {
+        const r = el.getBoundingClientRect();
+        const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+        const near = Math.hypot(dx, dy) < Math.max(r.width, r.height);
+        gsap.to(el, { x: near ? dx * 0.3 : 0, y: near ? dy * 0.4 : 0, duration: 0.6, ease: "power3.out" });
+      }
+    });
+  }
+
+  // 3D tilt and glare that follows the pointer on hero cards.
+  function initTilt() {
+    if (!finePointer) return;
+    let active = null;
+    document.addEventListener("pointermove", (e) => {
+      const card = e.target.closest(".card");
+      if (active && active !== card) gsap.to(active, { rotateX: 0, rotateY: 0, duration: 0.6, ease: "power3.out" });
+      active = card;
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      gsap.to(card, { rotateX: (0.5 - y) * 16, rotateY: (x - 0.5) * 18, transformPerspective: 700, duration: 0.4, ease: "power2.out" });
+      card.style.setProperty("--mx", `${x * 100}%`);
+      card.style.setProperty("--my", `${y * 100}%`);
+    });
   }
 
   // Glowing embers drifting up behind the page.
   function initEmbers() {
     const canvas = $("#embers");
-    if (reduceMotion || !canvas.getContext) { canvas.remove(); return; }
+    if (!canvas.getContext) { canvas.remove(); return; }
     const ctx = canvas.getContext("2d");
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     let w, h, parts = [];
     const spawn = (anywhere) => ({
-      x: Math.random() * w,
-      y: anywhere ? Math.random() * h : h + 10,
-      r: 0.6 + Math.random() * 2.2,
-      vy: 0.25 + Math.random() * 0.9,
-      vx: (Math.random() - 0.5) * 0.3,
-      phase: Math.random() * Math.PI * 2,
-      hue: 12 + Math.random() * 30,
-      life: 0.4 + Math.random() * 0.6
+      x: Math.random() * w, y: anywhere ? Math.random() * h : h + 10,
+      r: 0.8 + Math.random() * 2.6, vy: 0.3 + Math.random() * 1.1, vx: (Math.random() - 0.5) * 0.3,
+      phase: Math.random() * Math.PI * 2, hue: 10 + Math.random() * 32, life: 0.5 + Math.random() * 0.5
     });
     const resize = () => {
       w = canvas.width = innerWidth * dpr;
       h = canvas.height = innerHeight * dpr;
-      canvas.style.width = `${innerWidth}px`;
-      canvas.style.height = `${innerHeight}px`;
-      const n = Math.round(Math.min(90, (innerWidth * innerHeight) / 16000));
+      const n = Math.round(Math.min(110, (innerWidth * innerHeight) / 12000));
       parts = Array.from({ length: n }, () => spawn(true));
     };
     resize();
     addEventListener("resize", resize);
     let running = true;
-    document.addEventListener("visibilitychange", () => {
-      running = !document.hidden;
-      if (running) requestAnimationFrame(frame);
-    });
+    document.addEventListener("visibilitychange", () => { running = !document.hidden; if (running) requestAnimationFrame(frame); });
     function frame(t) {
       if (!running) return;
       ctx.clearRect(0, 0, w, h);
       ctx.globalCompositeOperation = "lighter";
       for (const p of parts) {
         p.y -= p.vy * dpr;
-        p.x += (p.vx + Math.sin(t / 900 + p.phase) * 0.25) * dpr;
+        p.x += (p.vx + Math.sin(t / 900 + p.phase) * 0.3) * dpr;
         if (p.y < -10) Object.assign(p, spawn(false));
-        const fade = Math.min(1, p.y / h + 0.15) * p.life;
+        const a = Math.min(1, p.y / h + 0.2) * p.life;
         const r = p.r * dpr;
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 4);
-        g.addColorStop(0, `hsla(${p.hue}, 100%, 65%, ${fade})`);
+        g.addColorStop(0, `hsla(${p.hue}, 100%, 65%, ${a})`);
         g.addColorStop(1, `hsla(${p.hue}, 100%, 50%, 0)`);
         ctx.fillStyle = g;
         ctx.beginPath();
@@ -540,18 +843,55 @@
     requestAnimationFrame(frame);
   }
 
+  // ---------- preloader ----------
+
+  function startLoader() {
+    const num = $("#loader-num"), bar = $("#loader-bar");
+    const o = { v: 0 };
+    let tween = null;
+    const to = (v, d) => {
+      if (!hasGsap) { num.textContent = Math.round(v); bar.style.transform = `scaleX(${v / 100})`; return; }
+      tween && tween.kill();
+      tween = gsap.to(o, { v, duration: d, ease: "power2.out", onUpdate: () => { num.textContent = Math.round(o.v); bar.style.transform = `scaleX(${o.v / 100})`; } });
+      return tween;
+    };
+    if (hasGsap) {
+      gsap.fromTo(".emblem-ring, .emblem-mark", { strokeDashoffset: 400 }, { strokeDashoffset: 0, duration: 1.8, ease: "power2.inOut", stagger: 0.3 });
+      gsap.to(".emblem", { rotate: 360, duration: 8, ease: "none", repeat: -1 });
+    }
+    to(70, 2.5);
+    const started = performance.now();
+    return {
+      async finish() {
+        // Keep the intro on screen long enough to be seen, even when data comes from cache.
+        await new Promise((r) => setTimeout(r, Math.max(0, 1800 - (performance.now() - started))));
+        return new Promise((resolve) => {
+          if (!hasGsap) { $("#loader").remove(); document.body.classList.remove("is-loading"); resolve(); return; }
+          to(100, 0.6).then(() => {
+            gsap.timeline({ onComplete: () => { $("#loader").remove(); resolve(); } })
+              .to(".loader-count, .loader-bar, .loader-text", { y: -30, opacity: 0, duration: 0.5, stagger: 0.05, ease: "power3.in" })
+              .to(".emblem", { scale: 8, opacity: 0, duration: 0.9, ease: "expo.in" }, "-=0.2")
+              .to("#loader", { clipPath: "inset(0 0 100% 0)", duration: 1, ease: "expo.inOut" }, "-=0.35")
+              .add(() => document.body.classList.remove("is-loading"), "-=0.8");
+          });
+        });
+      },
+      fail(err) {
+        $(".loader-text").innerHTML = `<span class="bad">Gagal memuat data: ${esc(err && err.message)}</span><br>Coba muat ulang halaman sebentar lagi.`;
+      }
+    };
+  }
+
   // ---------- boot ----------
 
   async function boot() {
+    const loader = startLoader();
     initEmbers();
-    initScrollProgress();
-    observeReveals();
-    $("#grid").innerHTML = Array.from({ length: 18 }, () => `<div class="card skeleton-card"><div class="skeleton"></div><span class="skeleton"></span><span class="skeleton short"></span></div>`).join("");
 
     loadPatch().then((p) => {
       if (!p) return;
       $("#patch-text").textContent = `Patch ${p.name}`;
-      $("#title-patch").textContent = `patch ${p.name}`;
+      $("#intro-patch").textContent = p.name;
     }).catch(() => { $("#patch-text").textContent = "Patch terbaru"; });
 
     try {
@@ -559,15 +899,41 @@
       state.heroes = heroes;
       state.items = items;
     } catch (err) {
-      $("#grid").innerHTML = errorBox(err);
-      $("#spotlight").innerHTML = "";
+      loader.fail(err);
       return;
     }
+
+    // Wait briefly so the patch number lands in the title before it animates.
+    await Promise.race([loadPatch().catch(() => {}), new Promise((r) => setTimeout(r, 800))]);
+
+    state.meta = computeMeta(state.bracket);
+    renderIntro();
+    renderMarquee();
+    renderTop();
+    buildCards();
+    updateCards();
+    applyFilters({ animate: false });
+    renderNumbers(true);
     initFilters();
+
+    initSmoothScroll();
+    initScrollUi();
+    initCursor();
+    initMagnetic();
     initTilt();
-    renderList({ intro: true });
-    window.addEventListener("hashchange", route);
-    route();
+
+    const firstIsHero = /^#\/hero\/\d+/.test(location.hash);
+    await loader.finish();
+    if (!firstIsHero) animateListIn();
+    route(true);
+    if (firstIsHero) {
+      // Build list animations once the visitor first returns to the list.
+      let done = false;
+      addEventListener("hashchange", () => setTimeout(() => {
+        if (!done && current === "list") { done = true; animateListIn(); }
+      }, 900));
+    }
+    addEventListener("hashchange", () => route());
   }
 
   boot();
