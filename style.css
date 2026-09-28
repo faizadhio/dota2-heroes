@@ -272,6 +272,15 @@ body.cursor-view .cursor-dot { opacity: 0; }
 .hero-halo::after { inset: 24%; border-style: solid; animation-duration: 18s; animation-direction: reverse; }
 @keyframes rot { to { transform: rotate(360deg); } }
 video.failed { object-fit: contain; }
+/* No render available: frame the portrait instead of leaving a bare rectangle */
+video.portrait {
+  width: min(88%, 520px); height: auto; aspect-ratio: 16 / 9; margin: auto; align-self: center; justify-self: center;
+  background: center / cover no-repeat; border-radius: 18px;
+  border: 2px solid color-mix(in srgb, var(--ac, #e2533b) 75%, transparent);
+  box-shadow: 0 0 0 6px rgba(0, 0, 0, .35), 0 0 0 7px color-mix(in srgb, var(--ac, #e2533b) 25%, transparent),
+    0 26px 60px -18px color-mix(in srgb, var(--ac, #e2533b) 85%, transparent), inset 0 -40px 60px -20px rgba(0, 0, 0, .55);
+  transform: rotate(-2deg);
+}
 .hero-info { position: relative; min-width: 0; }
 .hero-sub { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 0 0 10px; }
 .hero-name { font: 900 clamp(38px, 6.4vw, 96px)/1 var(--epic); margin: 0 0 20px; letter-spacing: -.04em; text-transform: uppercase; text-shadow: 0 0 60px color-mix(in srgb, var(--ac) 55%, transparent); overflow: hidden; padding-bottom: .06em; }
@@ -329,7 +338,7 @@ video.failed { object-fit: contain; }
 .bar { display: block; height: 4px; background: var(--surface-2); border-radius: 2px; margin-top: 6px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transform-origin: 0 50%; transform: scaleX(var(--w)); }
 
-.brackets { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-top: 14px; }
+.brackets { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 5px; margin-top: 14px; }
 .br { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 11px; }
 .br-bar { width: 100%; max-width: 28px; height: 120px; background: var(--surface-2); border-radius: 7px; display: flex; align-items: flex-end; overflow: hidden; }
 .br-bar i { display: block; width: 100%; height: 100%; background: linear-gradient(0deg, rgba(143, 149, 166, .25), var(--muted)); border-radius: 7px; transform-origin: 50% 100%; transform: scaleY(var(--h)); }
@@ -338,13 +347,14 @@ video.failed { object-fit: contain; }
 .br-val { font-variant-numeric: tabular-nums; }
 .br-name { color: var(--muted); }
 
-.mus { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.mus { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.mus > div { min-width: 0; }
 .mus h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
 .mu { display: flex; align-items: center; gap: 8px; padding: 6px; margin: 0 -6px; border-radius: 9px; font-size: 13px; transition: background .25s; }
 .mu:hover { background: var(--surface-2); }
 .mu img { width: 40px; height: 23px; object-fit: cover; border-radius: 4px; flex: none; }
 .mu span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mu b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.mu b { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; }
 
 .foot { color: var(--muted); font-size: 12px; padding: 50px 0 34px; border-top: 1px solid var(--border); margin-top: 60px; }
 body.has-cursor, body.has-cursor a, body.has-cursor button { cursor: none; }
@@ -393,7 +403,6 @@ body.has-cursor input { cursor: auto; }
   .kpis { min-width: 0; flex-basis: 100%; }
   .core-row { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; }
   .core-path { display: none; }
-  .mus { grid-template-columns: 1fr; }
   .panel { padding: 18px; }
 }
 .intro-title .gold { text-transform: none; }
@@ -510,3 +519,4 @@ body.has-cursor input { cursor: auto; }
 /* Let the browser skip layout and paint for hero cards that are off screen */
 .grid .card { content-visibility: auto; contain-intrinsic-size: auto 125px; }
 @media (max-width: 899px) { .grid .card { contain-intrinsic-size: auto 165px; } }
+.br.empty .br-val, .br.empty .br-name { opacity: .45; }
