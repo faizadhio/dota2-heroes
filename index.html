@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dota 2 Meta · Hero & Item Build</title>
+  <meta name="description" content="Daftar hero Dota 2 dengan win rate, pick rate dan item build terpopuler berdasarkan meta patch saat ini. Data live dari OpenDota API.">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23c23c2a'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-weight='700' font-size='34' fill='white'>D2</text></svg>">
+  <link rel="preconnect" href="https://api.opendota.com">
+  <link rel="preconnect" href="https://cdn.cloudflare.steamstatic.com">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <a href="#/" class="brand"><span class="brand-mark">D2</span> Meta<span class="brand-dim">Builds</span></a>
+      <div class="patch" id="patch" title="Patch saat ini">Memuat patch…</div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="list-view">
+      <div class="intro">
+        <h1>Hero Dota 2 &amp; item build meta</h1>
+        <p>Win rate dan pick rate dari pertandingan publik terbaru, plus item yang paling sering dibeli tiap hero. Semua data diambil langsung dari <a href="https://docs.opendota.com/" target="_blank" rel="noopener">OpenDota API</a>.</p>
+      </div>
+
+      <div class="controls">
+        <input id="search" type="search" placeholder="Cari hero…" autocomplete="off" aria-label="Cari hero">
+        <div class="seg" id="attr-filter" role="group" aria-label="Atribut utama">
+          <button data-attr="" class="on">Semua</button>
+          <button data-attr="str"><i class="attr str"></i>Str</button>
+          <button data-attr="agi"><i class="attr agi"></i>Agi</button>
+          <button data-attr="int"><i class="attr int"></i>Int</button>
+          <button data-attr="all"><i class="attr all"></i>Uni</button>
+        </div>
+        <select id="role" aria-label="Role">
+          <option value="">Semua role</option>
+        </select>
+        <select id="bracket" aria-label="Bracket rank">
+          <option value="all">Semua rank</option>
+          <option value="1">Herald</option>
+          <option value="2">Guardian</option>
+          <option value="3">Crusader</option>
+          <option value="4">Archon</option>
+          <option value="5">Legend</option>
+          <option value="6">Ancient</option>
+          <option value="7">Divine</option>
+          <option value="8">Immortal</option>
+          <option value="pro">Pro match</option>
+        </select>
+        <select id="sort" aria-label="Urutkan">
+          <option value="tier">Urut: Tier meta</option>
+          <option value="win">Urut: Win rate</option>
+          <option value="pick">Urut: Pick rate</option>
+          <option value="name">Urut: Nama</option>
+        </select>
+      </div>
+
+      <div class="legend">
+        <span><b class="tier t-S">S</b> Sangat kuat</span>
+        <span><b class="tier t-A">A</b> Kuat</span>
+        <span><b class="tier t-B">B</b> Seimbang</span>
+        <span><b class="tier t-C">C</b> Lemah</span>
+        <span><b class="tier t-D">D</b> Hindari</span>
+      </div>
+
+      <div id="grid" class="grid" aria-live="polite">
+        <p class="state">Memuat data hero…</p>
+      </div>
+    </section>
+
+    <section id="hero-view" hidden></section>
+  </main>
+
+  <footer class="wrap foot">
+    Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota</a>. Tier dihitung dari win rate dan pick rate bracket yang dipilih. Dota 2 adalah merek dagang Valve Corporation; situs ini tidak berafiliasi dengan Valve.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
