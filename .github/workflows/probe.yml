@@ -15,6 +15,13 @@ jobs:
             curl -s -A "Mozilla/5.0" "$u" -o "b_$(echo $u | md5sum | cut -c1-6).js"
           done
           ls -la b_*.js
-          for f in b_*.js; do grep -o '.\{3000\}VIDEO_URL}abilities.\{3500\}' "$f" | head -1 | fold -w 400; done
-          echo ----
-          for f in b_*.js; do grep -o '.\{300\}VIDEO_URL=.\{300\}' "$f" | head -2; done
+          python3 - <<'PY'
+          import glob, re
+          for f in glob.glob('b_*.js'):
+              t = open(f, encoding='utf-8', errors='ignore').read()
+              for m in re.finditer(r'VIDEO_URL\}abilities', t):
+                  print('=====', f, m.start())
+                  print(t[max(0, m.start()-3500):m.start()+3000])
+              for m in re.finditer(r'VIDEO_URL\s*[:=]', t):
+                  print('-- VIDEO_URL def', t[m.start()-100:m.start()+250])
+          PY
