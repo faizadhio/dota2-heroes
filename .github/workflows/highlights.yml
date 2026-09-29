@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "41 */6 * * *"
   workflow_dispatch:
+  push:
+    branches: [claude/project-thread-ujzb8t]
+    paths: [scripts/highlights.mjs, .github/workflows/highlights.yml]
 
 permissions:
   contents: write
