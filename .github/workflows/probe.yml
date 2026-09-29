@@ -1,0 +1,19 @@
+name: Probe upgrade videos (temporary)
+on:
+  push:
+    branches: [claude/project-thread-ujzb8t]
+    paths: [.github/workflows/probe.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -s -A "Mozilla/5.0" https://www.dota2.com/hero/outworlddestroyer -o page.html
+          grep -o '<script[^>]*src="[^"]*"' page.html | head -20
+          for s in $(grep -o 'src="[^"]*\.js[^"]*"' page.html | sed 's/src="//;s/"$//' | sed 's/&amp;/\&/g'); do
+            case "$s" in http*) u="$s";; //*) u="https:$s";; *) u="https://www.dota2.com$s";; esac
+            curl -s -A "Mozilla/5.0" "$u" -o "b_$(echo $u | md5sum | cut -c1-6).js"
+          done
+          ls -la b_*.js
+          for f in b_*.js; do grep -o '.\{200\}dota_react/abilities.\{300\}' "$f" | head -5; done
+          for f in b_*.js; do grep -o '.\{150\}_shard.\{150\}' "$f" | grep -i video | head -5; grep -o '.\{150\}scepter.\{150\}' "$f" | grep -i video | head -5; done
