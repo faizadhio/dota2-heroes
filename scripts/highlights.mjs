@@ -104,6 +104,12 @@ async function fromPage({ id, label }) {
   const m = html.match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
   if (!m) throw new Error("no ytInitialData");
   const all = [...walk(JSON.parse(m[1]))];
+  if (process.env.HL_DEBUG) {
+    const find = (n, k) => { if (!n || typeof n !== "object") return null; if (n[k]) return n[k]; for (const v of Object.values(n)) { const r = find(v, k); if (r) return r; } return null; };
+    const d = JSON.parse(m[1]);
+    const sample = find(d, "videoRenderer") || find(d, "lockupViewModel");
+    console.log("DEBUG", JSON.stringify(sample).slice(0, 6000));
+  }
   if (!all.length) throw new Error("no videos found on the page");
   console.log(`${label}: page lists ${all.length} videos, e.g. "${all[0].title}" (${all[0].views}, ${all[0].ago}, ${all[0].length})`);
   // "3 weeks ago" is coarse, so nudge each video back by its position to keep the page's newest-first order.
