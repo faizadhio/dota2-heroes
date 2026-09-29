@@ -726,7 +726,128 @@
     return { prev: byId.get(order[(i - 1 + order.length) % order.length]), next: byId.get(order[(i + 1) % order.length]) };
   }
 
-  function renderHero(id) {
+  // Lore, abilities, talents and base stats from dota2.com, copied into data/profiles/ by the daily snapshot.
+  const profiles = new Map();
+  const loadProfile = (id) => {
+    if (!profiles.has(id)) profiles.set(id, fetch(`data/profiles/${id}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+    return profiles.get(id);
+  };
+
+  const ROLE_NAMES = ["Carry", "Support", "Nuker", "Disabler", "Jungler", "Durable", "Escape", "Pusher", "Initiator"];
+  const ATTR_ICONS = { str: "strength", agi: "agility", int: "intelligence", all: "universal" };
+  const attrIcon = (a, cls = "attr-ico") => `<img class="${cls}" src="${CDN}/apps/dota2/images/dota_react/icons/hero_${ATTR_ICONS[a] || "universal"}.png" alt="" data-attr="${esc(a)}">`;
+  const abilityImg = (name) => `${CDN}/apps/dota2/images/dota_react/abilities/${name}.png`;
+  const fixed = (v, d = 1) => (v == null ? "–" : Number.isInteger(v) ? String(v) : v.toFixed(d).replace(/\.0$/, ""));
+  const safeHtml = (s) => esc(s).replace(/&lt;(\/?b)&gt;/gi, "<$1>").replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+  // Attack damage at level 1 includes the primary attribute (universal heroes get 45% of all three).
+  function attackDamage(p) {
+    const bonus = p.primary === "all" ? (p.str[0] + p.agi[0] + p.int[0]) * 0.45 : (p[p.primary] || [0])[0];
+    return p.damage.map((d) => Math.floor(d + bonus));
+  }
+
+  function renderProfileTop(p) {
+    if (!p) return "";
+    const dots = [1, 2, 3].map((n) => `<i class="${n <= p.complexity ? "on" : ""}"></i>`).join("");
+    return `
+      ${p.tagline ? `<p class="hero-tagline" data-rv style="--d:3">${esc(p.tagline)}</p>` : ""}
+      ${p.hype ? `<p class="hero-hype" data-rv style="--d:4">${safeHtml(p.hype)}</p>` : ""}
+      ${p.bio ? `<button class="hero-lore-btn" type="button" data-rv style="--d:4" aria-expanded="false">Read full history</button>
+        <div class="hero-bio" hidden>${safeHtml(p.bio)}</div>` : ""}
+      <div class="hero-facts" data-rv style="--d:5">
+        <div><small>Attack type</small><b><i class="atk-ico ${p.attack === "Ranged" ? "ranged" : "melee"}" aria-hidden="true"></i>${esc(p.attack)}</b></div>
+        <div><small>Complexity</small><span class="cx" title="${p.complexity} of 3">${dots}</span></div>
+      </div>`;
+  }
+
+  function renderAbilityRow(p) {
+    if (!p || !p.abilities.length) return "";
+    const list = [...p.abilities.filter((a) => a.innate), ...p.abilities.filter((a) => !a.innate)];
+    return `
+      <div class="hero-abilities" data-rv style="--d:6">
+        <h3>Abilities</h3>
+        <div class="ab-row" role="tablist" aria-label="Abilities">
+          ${list.map((a, i) => `<button type="button" role="tab" class="ab${a.innate ? " innate" : ""}${a.ult ? " ult" : ""}" data-ab="${esc(a.name)}" aria-selected="${i === 0}" title="${esc(a.title)}">
+            <img src="${esc(abilityImg(a.name))}" alt="${esc(a.title)}" loading="lazy"><span>${esc(a.title.slice(0, 2))}</span>
+          </button>`).join("")}
+        </div>
+      </div>`;
+  }
+
+  function abilityDetail(a) {
+    const vals = (arr) => arr.map((v) => fixed(v)).join(" / ");
+    const tags = [a.innate && "Innate", a.ult && "Ultimate", a.fromScepter && "From Aghanim's Scepter", a.fromShard && "From Aghanim's Shard"].filter(Boolean);
+    return `
+      <div class="ad-head">
+        <img src="${esc(abilityImg(a.name))}" alt="" class="ad-img">
+        <div><h3>${esc(a.title)}</h3>${tags.length ? `<p class="ad-tags">${tags.map((t) => `<span>${esc(t)}</span>`).join("")}</p>` : ""}</div>
+      </div>
+      <p class="ad-desc">${safeHtml(a.desc)}</p>
+      ${(a.values || []).length ? `<dl class="ad-values">${a.values.map((v) => `<div><dt>${esc(v.label)}</dt><dd>${esc(v.value)}</dd></div>`).join("")}</dl>` : ""}
+      ${a.cooldowns.length || a.mana.length ? `<div class="ad-costs">
+        ${a.cooldowns.length ? `<span><i class="cd" aria-hidden="true"></i><small>Cooldown</small>${vals(a.cooldowns)}</span>` : ""}
+        ${a.mana.length ? `<span><i class="mc" aria-hidden="true"></i><small>Mana</small>${vals(a.mana)}</span>` : ""}
+      </div>` : ""}
+      ${a.scepter ? `<p class="ad-aghs scepter"><b>Aghanim's Scepter</b>${safeHtml(a.scepter)}</p>` : ""}
+      ${a.shard ? `<p class="ad-aghs shard"><b>Aghanim's Shard</b>${safeHtml(a.shard)}</p>` : ""}
+      ${a.notes.length ? `<ul class="ad-notes">${a.notes.map((n) => `<li>${safeHtml(n)}</li>`).join("")}</ul>` : ""}
+      ${a.lore ? `<p class="ad-lore">${safeHtml(a.lore)}</p>` : ""}`;
+  }
+
+  function renderProfileBody(h, p) {
+    if (!p) return "";
+    const [hp, hpRegen] = p.health, [mp, mpRegen] = p.mana;
+    const attrRow = (a) => `<div class="pa-row${p.primary === a || p.primary === "all" ? " primary" : ""}">${attrIcon(a)}<b>${p[a][0]}</b><small>+${fixed(p[a][1])}</small></div>`;
+    const [dmin, dmax] = attackDamage(p);
+    const stat = (icon, label, value) => `<li><i class="st-ico ${icon}" aria-hidden="true"></i><span>${label}</span><b>${value}</b></li>`;
+    const talents = p.talents.length === 8 ? [3, 2, 1, 0].map((i) => `
+      <div class="tl-row"><span>${esc(p.talents[i * 2 + 1] || "")}</span><b>${10 + i * 5}</b><span>${esc(p.talents[i * 2] || "")}</span></div>`).join("") : "";
+    return `
+      <section class="hero-bar" data-rv>
+        <div class="wrap hb-grid">
+          <div class="hb-col">
+            <div class="pa">
+              <div class="pa-portrait">
+                <img src="${esc(heroImg(h))}" alt="">
+                <span class="pa-hp"><b>${hp}</b><small>+${fixed(hpRegen)}</small></span>
+                <span class="pa-mp"><b>${mp}</b><small>+${fixed(mpRegen)}</small></span>
+              </div>
+              <div class="pa-attrs">${["str", "agi", "int"].map(attrRow).join("")}</div>
+            </div>
+            <h4>Attributes</h4>
+          </div>
+          <div class="hb-col">
+            <div class="roles-grid">${ROLE_NAMES.map((r, i) => `<div class="rl${p.roles[i] ? " on" : ""}"><span>${r}</span><i style="--v:${(p.roles[i] || 0) / 3}"></i></div>`).join("")}</div>
+            <h4>Roles</h4>
+          </div>
+          <div class="hb-col">
+            <div class="stats-grid">
+              <div><h5>Attack</h5><ul>
+                ${stat("dmg", "Damage", `${dmin}–${dmax}`)}
+                ${stat("rate", "Attack time", fixed(p.attackRate))}
+                ${stat("range", "Range", p.attackRange)}
+                ${p.attack === "Ranged" ? stat("proj", "Projectile", p.projectileSpeed) : ""}
+              </ul></div>
+              <div><h5>Defense</h5><ul>
+                ${stat("armor", "Armor", fixed(p.armor))}
+                ${stat("mres", "Magic resist", `${fixed(p.magicResist)}%`)}
+              </ul></div>
+              <div><h5>Mobility</h5><ul>
+                ${stat("ms", "Move speed", p.moveSpeed)}
+                ${stat("turn", "Turn rate", fixed(p.turnRate))}
+                ${stat("vision", "Vision", `${p.vision[0]} / ${p.vision[1]}`)}
+              </ul></div>
+            </div>
+            <h4>Stats</h4>
+          </div>
+        </div>
+      </section>
+      ${p.abilities.length ? `<section class="wrap hero-skills">
+        <div class="panel ab-detail" id="ab-detail" data-rv aria-live="polite"></div>
+        ${talents ? `<div class="panel talents" data-rv style="--d:1"><h2>Talents</h2><div class="tl">${talents}</div></div>` : ""}
+      </section>` : ""}`;
+  }
+
+  function renderHero(id, p) {
     const h = state.heroes.find((x) => x.id === id);
     const view = $("#hero-view");
     $$("video", view).forEach((v) => onScreen.unobserve(v));
@@ -734,30 +855,42 @@
     document.title = `${h.localized_name} · Dota 2 Meta`;
     const meta = state.meta.get(h.id);
     const { prev, next } = heroNeighbours(h.id);
+    const attr = (p && p.primary) || h.primary_attr;
 
     view.innerHTML = `
-      <section class="hero-stage attr-${esc(h.primary_attr)}">
+      <section class="hero-stage attr-${esc(h.primary_attr)}${p ? " has-profile" : ""}">
         <div class="hero-art"><video class="hero-video" muted loop playsinline preload="auto" aria-hidden="true"></video></div>
+        <div class="hero-side" aria-hidden="true">${attrIcon(attr, "side-ico")}<b>${esc(h.localized_name)}</b><span>${h.id}</span></div>
+        <nav class="hero-nav" aria-label="Other heroes">
+          <a href="#/hero/${prev.id}" class="hn prev" title="Previous: ${esc(prev.localized_name)}" aria-label="Previous hero, ${esc(prev.localized_name)}"><svg viewBox="0 0 12 12"><path d="M8 2 3 6l5 4z"/></svg></a>
+          <a href="#/" class="hn all" title="All heroes" aria-label="All heroes"><svg viewBox="0 0 18 12"><path d="M0 0h5v5H0zM6.5 0h5v5h-5zM13 0h5v5h-5zM0 7h5v5H0zM6.5 7h5v5h-5zM13 7h5v5h-5z"/></svg></a>
+          <a href="#/hero/${next.id}" class="hn next" title="Next: ${esc(next.localized_name)}" aria-label="Next hero, ${esc(next.localized_name)}"><svg viewBox="0 0 12 12"><path d="m4 2 5 4-5 4z"/></svg></a>
+        </nav>
         <div class="wrap hero-grid">
           <div class="hero-info">
             <a class="back" href="#/" data-rv><span>←</span> All heroes</a>
-            <p class="hero-sub" data-rv style="--d:1"><i class="attr ${esc(h.primary_attr)}"></i>${esc(ATTR_NAMES[h.primary_attr] || h.primary_attr)}</p>
+            <p class="hero-sub" data-rv style="--d:1">${attrIcon(attr)}${esc(ATTR_NAMES[attr] || attr)}</p>
             <h1 class="hero-name" data-rv style="--d:2">${esc(h.localized_name)}</h1>
-            <p class="hero-line" data-rv style="--d:3">${esc(h.attack_type)} · ${(h.roles || []).map(esc).join(" · ")}</p>
-            <div class="hero-stats" data-rv style="--d:4">
-              ${ring(meta.wr)}
-              <div class="kpis">
-                <div><b class="tier t-${meta.tier}">${meta.tier}</b><small>Tier · ${esc(bracketLabel())}</small></div>
-                <div><b data-to="${meta.pr}" data-fmt="pct">0%</b><small>Pick rate</small></div>
-                <div><b data-to="${meta.rank}" data-fmt="rank">#0</b><small>of ${state.heroes.length} heroes</small></div>
-                ${h.pro_ban != null ? `<div><b data-to="${h.pro_ban}">0</b><small>Pro match bans</small></div>` : ""}
-              </div>
+            ${p ? renderProfileTop(p) : `<p class="hero-line" data-rv style="--d:3">${esc(h.attack_type)} · ${(h.roles || []).map(esc).join(" · ")}</p>`}
+          </div>
+          ${renderAbilityRow(p)}
+        </div>
+      </section>
+
+      ${renderProfileBody(h, p)}
+
+      <section class="wrap hero-meta">
+        <div class="panel meta-panel" data-rv>
+          <div class="mp-head"><h2>Current meta</h2><p class="hint">${esc(bracketLabel())} · recent public matches</p></div>
+          <div class="hero-stats">
+            ${ring(meta.wr)}
+            <div class="kpis">
+              <div><b class="tier t-${meta.tier}">${meta.tier}</b><small>Tier · ${esc(bracketLabel())}</small></div>
+              <div><b data-to="${meta.pr}" data-fmt="pct">0%</b><small>Pick rate</small></div>
+              <div><b data-to="${meta.rank}" data-fmt="rank">#0</b><small>of ${state.heroes.length} heroes</small></div>
+              ${h.pro_ban != null ? `<div><b data-to="${h.pro_ban}">0</b><small>Pro match bans</small></div>` : ""}
             </div>
           </div>
-          <nav class="hero-nav" aria-label="Other heroes" data-rv style="--d:5">
-            <a href="#/hero/${prev.id}" class="hn prev"><span>‹</span><small>Previous</small><b>${esc(prev.localized_name)}</b></a>
-            <a href="#/hero/${next.id}" class="hn next"><small>Next</small><b>${esc(next.localized_name)}</b><span>›</span></a>
-          </nav>
         </div>
       </section>
 
@@ -784,16 +917,44 @@
     onScreen.observe($(".hero-video", view));
     const fmtOf = (el) => el.dataset.fmt === "rank" ? (v) => `#${Math.max(1, Math.round(v))}`
       : el.dataset.fmt === "pct" ? (v) => pct(v) : (v) => Math.round(v).toLocaleString("en-US");
-    onReveal($(".hero-stats", view), () => {
+    onReveal($(".meta-panel", view), () => {
       const fg = $(".ring-fg", view);
       fg.style.strokeDashoffset = fg.dataset.off;
       $$("[data-to]", view).forEach((el) => countUp(el, Number(el.dataset.to), fmtOf(el)));
     });
-    // The render slides in once it has a frame to show.
+    // Icons that don't exist on the CDN fall back to a coloured dot or the ability's initials.
+    $$("img.attr-ico, img.side-ico", view).forEach((im) => im.addEventListener("error", () => { im.replaceWith(Object.assign(document.createElement("i"), { className: `attr ${im.dataset.attr}` })); }, { once: true }));
+    $$(".ab img, .ad-img", view).forEach((im) => im.addEventListener("error", () => im.classList.add("missing"), { once: true }));
+    if (p) initProfile(view, p);
     const art = $(".hero-art", view);
     requestAnimationFrame(() => requestAnimationFrame(() => art.classList.add("in")));
     reveal(view);
+    loadProfile(prev.id); loadProfile(next.id);
     return h;
+  }
+
+  function initProfile(view, p) {
+    const lore = $(".hero-lore-btn", view);
+    if (lore) lore.addEventListener("click", () => {
+      const bio = $(".hero-bio", view);
+      bio.hidden = !bio.hidden;
+      lore.setAttribute("aria-expanded", String(!bio.hidden));
+      lore.textContent = bio.hidden ? "Read full history" : "Hide history";
+    });
+    const detail = $("#ab-detail", view);
+    const byName = new Map(p.abilities.map((a) => [a.name, a]));
+    const pick = (btn, scroll) => {
+      $$(".ab", view).forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
+      if (!detail) return;
+      detail.innerHTML = abilityDetail(byName.get(btn.dataset.ab));
+      const im = $(".ad-img", detail);
+      if (im) im.addEventListener("error", () => im.classList.add("missing"), { once: true });
+      if (scroll) detail.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+    };
+    const row = $(".ab-row", view);
+    if (!row) return;
+    row.addEventListener("click", (e) => { const b = e.target.closest(".ab"); if (b) pick(b, true); });
+    pick($(".ab", row), false);
   }
 
   async function loadHeroData(id) {
@@ -825,8 +986,8 @@
     const main = $("main");
     if (reduceMotion) { swap(); return; }
     main.classList.add("leaving");
-    setTimeout(() => {
-      swap();
+    setTimeout(async () => {
+      await swap();
       main.classList.remove("leaving");
     }, 220);
   }
@@ -846,8 +1007,8 @@
     window.scrollTo(0, listScroll);
   }
 
-  function showHero(id) {
-    const h = renderHero(id);
+  function showHero(id, profile) {
+    const h = renderHero(id, profile);
     showOnly("#hero-view");
     window.scrollTo(0, 0);
     if (h) loadHeroData(id);
@@ -865,7 +1026,14 @@
     const next = m ? `hero:${m[1]}` : hl ? "highlights" : "list";
     if (next === current) return;
     if (current === "list") listScroll = window.scrollY;
-    const go = () => { current = next; m ? showHero(Number(m[1])) : hl ? showHighlights() : showList(); };
+    // The profile is a small static file; wait briefly for it so the page doesn't reflow once it lands.
+    const profile = m ? Promise.race([loadProfile(Number(m[1])), new Promise((r) => setTimeout(r, 1500))]) : null;
+    const go = async () => {
+      current = next;
+      if (!m) { hl ? showHighlights() : showList(); return; }
+      const p = await profile;
+      if (current === next) showHero(Number(m[1]), p);
+    };
     if (first) go(); else fade(go);
   }
 

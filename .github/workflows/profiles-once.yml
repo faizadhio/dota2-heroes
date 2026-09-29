@@ -15,10 +15,9 @@ jobs:
           node-version: 20
       - run: node scripts/profiles.mjs
       - run: |
-          jq -c '{tagline, attack, primary, roles, talents, ab: [.abilities[] | {title, desc, ult, innate, cooldowns, mana, shard, scepter}]}' data/profiles/102.json
-          jq -c '.talents' data/profiles/1.json data/profiles/74.json
-          jq -c '.abilities[] | {title, desc}' data/profiles/74.json | cut -c1-400
-          grep -l '?' data/profiles/*.json | wc -l
+          jq -c '[.abilities[] | {title, values, shard, scepter}]' data/profiles/102.json
+          jq -c '.talents' data/profiles/74.json data/profiles/89.json
+          jq -r '.abilities[].desc' data/profiles/*.json | grep -c '%%' || true
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

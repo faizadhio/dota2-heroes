@@ -25,36 +25,49 @@ const clean = (s) => String(s || "")
   .trim();
 
 const num = (v) => Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
-const valueText = (sv) => {
-  const vals = sv.values_float || [];
+// "which" picks the upgraded values for Aghanim's Scepter or Shard text when the ability has them.
+const values = (sv, which) => {
+  const up = which && sv[`values_${which}`];
+  return up && up.length && up.some((v) => v) ? up : sv.values_float || [];
+};
+const valueText = (sv, which, pctSuffix = false) => {
+  const vals = values(sv, which);
   if (!vals.length) return "";
   const uniq = vals.every((v) => v === vals[0]) ? [vals[0]] : vals;
-  return uniq.map(num).join(" / ") + (sv.is_percentage ? "%" : "");
+  return uniq.map(num).join(" / ") + (pctSuffix && sv.is_percentage ? "%" : "");
 };
 
-// Descriptions reference values as %name% (and %% for a literal percent sign).
-function fill(text, specials) {
+// Descriptions reference values as %name%; a literal percent sign is written %%, so "%x%%%" reads "30%".
+function fill(text, specials, which) {
   const byName = new Map(specials.map((sv) => [sv.name.toLowerCase(), sv]));
   return clean(text).replace(/%([a-z0-9_]*)%/gi, (m, key) => {
     if (!key) return "%";
     const sv = byName.get(key.toLowerCase());
-    return sv ? valueText(sv) : "?";
+    return sv ? valueText(sv, which) : "?";
   });
 }
+
+// The headed values dota2.com lists under an ability ("DAMAGE/HEAL: 95 / 170 / 245 / 320").
+const specialsList = (specials) => specials
+  .filter((sv) => sv.heading_loc && (sv.values_float || []).length)
+  .map((sv) => ({ label: clean(sv.heading_loc).replace(/:$/, ""), value: valueText(sv, null, true) }));
 
 // Talent names look like "+{s:bonus_curse_dps} Curse of Avernus DPS"; the number lives in the ability the
 // talent upgrades, as a bonus named after the talent.
 function talentText(t, abilities) {
-  const values = {};
+  const key = (k) => k.toLowerCase().replace(/^bonus_/, "");
+  const found = {};
   for (const a of abilities) for (const sv of a.special_values || []) {
-    for (const b of sv.bonuses || []) if (b.name === t.name) values[sv.name] = b.value;
+    for (const b of sv.bonuses || []) if (b.name === t.name) found[key(sv.name)] = b.value;
   }
-  for (const sv of t.special_values || []) if (sv.values_float && sv.values_float.length) values[sv.name] = sv.values_float[0];
+  for (const sv of t.special_values || []) if (sv.values_float && sv.values_float.length) found[key(sv.name)] = sv.values_float[0];
   return clean(t.name_loc)
-    .replace(/\{s:(?:bonus_)?([a-z0-9_]+)\}/gi, (m, key) => {
-      const v = values[key] ?? values[`bonus_${key}`];
-      return v == null ? "" : num(v);
+    .replace(/\{s:([a-z0-9_]+)\}/gi, (m, k) => {
+      const v = found[key(k)];
+      return v == null ? "\u0000" : num(v);
     })
+    // A value the feed doesn't carry leaves a bare "+%" or "x"; drop it rather than show a hole.
+    .replace(/[+-]?\u0000[%xs]?\s*/g, "")
     .replace(/\+\s*-/g, "-")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -67,14 +80,15 @@ function trim(h) {
       name: a.name,
       title: clean(a.name_loc),
       desc: fill(a.desc_loc, a.special_values || []),
+      values: specialsList(a.special_values || []),
       lore: clean(a.lore_loc),
       notes: (a.notes_loc || []).map((n) => fill(n, a.special_values || [])).filter(Boolean),
       cooldowns: (a.cooldowns || []).filter((v) => v > 0),
       mana: (a.mana_costs || []).filter((v) => v > 0),
       ult: a.type === 1,
       innate: !!a.ability_is_innate,
-      shard: fill(a.shard_loc, a.special_values || []),
-      scepter: fill(a.scepter_loc, a.special_values || []),
+      shard: fill(a.shard_loc, a.special_values || [], "shard"),
+      scepter: fill(a.scepter_loc, a.special_values || [], "scepter"),
       fromShard: !!a.ability_is_granted_by_shard,
       fromScepter: !!a.ability_is_granted_by_scepter
     }));
