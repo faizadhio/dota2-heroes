@@ -207,6 +207,126 @@
     return gsap.to(o, { v: to, duration: 2, ease: "power3.out", ...opts, onUpdate: () => { el.textContent = fmt(o.v); } });
   }
 
+  // ---------- highlights ----------
+
+  let highlights = null;
+  const loadHighlights = () => (highlights ||= fetch("data/highlights.json", { cache: "no-cache" })
+    .then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.videos) || []).catch(() => []));
+
+  function ago(iso) {
+    const s = (Date.now() - Date.parse(iso)) / 1000;
+    for (const [n, unit] of [[31536000, "year"], [2592000, "month"], [604800, "week"], [86400, "day"], [3600, "hour"], [60, "minute"]]) {
+      if (s >= n) { const v = Math.floor(s / n); return `${v} ${unit}${v > 1 ? "s" : ""} ago`; }
+    }
+    return "just now";
+  }
+  const duration = (sec) => {
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = String(sec % 60).padStart(2, "0");
+    return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+  };
+  // Channels tack "| DOTA2" and similar onto every title; the page already says it's Dota.
+  const tidyTitle = (t) => t.replace(/\s*[|·-]\s*dota ?2\s*$/i, "").trim();
+
+  const highlightCard = (v) => `
+    <button class="hl-card" type="button" data-video="${esc(v.id)}" data-title="${esc(tidyTitle(v.title))}">
+      <span class="hl-thumb">
+        <img src="https://i.ytimg.com/vi/${esc(v.id)}/hqdefault.jpg" alt="" loading="lazy" decoding="async">
+        <i class="hl-play" aria-hidden="true"></i>
+        <em class="hl-ch">${esc(v.channel)}</em>
+        ${v.duration ? `<em class="hl-dur">${duration(v.duration)}</em>` : ""}
+      </span>
+      <span class="hl-meta">
+        <b>${esc(tidyTitle(v.title))}</b>
+        <small>${esc(ago(v.published))}${v.views ? ` · ${compact(v.views)} views` : ""}</small>
+      </span>
+    </button>`;
+
+  function renderHomeHighlights(videos) {
+    if (!videos.length) return;
+    $("#hl-row").innerHTML = videos.slice(0, 8).map(highlightCard).join("");
+    $("#highlights").hidden = false;
+  }
+
+  let hlFilter = "";
+  async function renderHighlightsPage() {
+    const view = $("#highlights-view");
+    view.innerHTML = `
+      <section class="wrap hl-page">
+        <a class="back" href="#/"><span>←</span> All heroes</a>
+        <p class="eyebrow"><span class="line"></span>Fresh from the pro scene</p>
+        <h1 class="section-title hl-title">Tournament highlights</h1>
+        <div class="hl-chips" id="hl-chips" role="group" aria-label="Channel"></div>
+        <div class="hl-grid" id="hl-grid"><p class="state">Loading highlights…</p></div>
+      </section>`;
+    const videos = await loadHighlights();
+    if (current !== "highlights") return;
+    const grid = $("#hl-grid", view);
+    if (!videos.length) { grid.innerHTML = `<p class="state">No highlights yet. They are collected once a day, check back soon.</p>`; return; }
+    const channels = [...new Set(videos.map((v) => v.channel))];
+    if (!channels.includes(hlFilter)) hlFilter = "";
+    const chips = $("#hl-chips", view);
+    const draw = (animate) => {
+      chips.innerHTML = ["", ...channels].map((c) => `<button type="button" class="chip${c === hlFilter ? " on" : ""}" data-ch="${esc(c)}">${esc(c || "All")}</button>`).join("");
+      grid.innerHTML = videos.filter((v) => !hlFilter || v.channel === hlFilter).map(highlightCard).join("");
+      if (animate && hasGsap) gsap.from($$(".hl-card", grid), { y: 50, opacity: 0, duration: 0.8, ease: "expo.out", stagger: 0.04, clearProps: "transform,opacity" });
+    };
+    chips.addEventListener("click", (e) => {
+      const b = e.target.closest(".chip");
+      if (!b || b.dataset.ch === hlFilter) return;
+      hlFilter = b.dataset.ch;
+      draw(true);
+      ScrollTrigger.refresh();
+    });
+    draw(true);
+    ScrollTrigger.refresh();
+  }
+
+  function animateHighlightsIn() {
+    if (!hasGsap) return;
+    gsap.timeline({ defaults: { ease: "expo.out" } })
+      .from(".hl-page .back", { x: -30, opacity: 0, duration: 0.8 }, 0.1)
+      .from(".hl-page .eyebrow", { y: 20, opacity: 0, duration: 0.8 }, 0.15)
+      .from(".hl-title", { yPercent: 60, opacity: 0, duration: 1.1 }, 0.2);
+  }
+
+  // One shared player: the YouTube iframe only exists while the dialog is open.
+  function initPlayer() {
+    const box = $("#player");
+    const frame = $(".player-frame", box);
+    let paused = [], lastFocus = null;
+    const close = () => {
+      if (box.hidden) return;
+      box.hidden = true;
+      frame.innerHTML = "";
+      document.body.classList.remove("player-open");
+      lenis && lenis.start();
+      paused.forEach((v) => v.play().catch(() => {}));
+      paused = [];
+      lastFocus && lastFocus.focus();
+    };
+    const open = (id, title) => {
+      lastFocus = document.activeElement;
+      frame.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&playsinline=1" title="${esc(title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+      $(".player-title", box).textContent = title;
+      $(".player-yt", box).href = `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+      // Hero videos behind the dialog would only compete with the YouTube player.
+      paused = $$("video").filter((v) => !v.paused);
+      paused.forEach((v) => v.pause());
+      box.hidden = false;
+      document.body.classList.add("player-open");
+      lenis && lenis.stop();
+      $(".player-close", box).focus();
+      if (hasGsap) gsap.fromTo(".player-box", { y: 40, scale: 0.94, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.6, ease: "expo.out", clearProps: "transform,opacity" });
+    };
+    document.addEventListener("click", (e) => {
+      const card = e.target.closest(".hl-card");
+      if (card) { open(card.dataset.video, card.dataset.title); return; }
+      if (e.target.closest("[data-close]")) close();
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    addEventListener("hashchange", close);
+  }
+
   // ---------- intro ----------
 
   function renderIntro() {
@@ -756,6 +876,8 @@
     heroCtx = null;
     $("#hero-view").hidden = true;
     $("#hero-view").innerHTML = "";
+    $("#highlights-view").hidden = true;
+    $("#highlights-view").innerHTML = "";
     $("#list-view").hidden = false;
     ScrollTrigger.refresh();
     scrollToY(listScroll);
@@ -767,6 +889,8 @@
     $("#intro-video").pause();
     const h = renderHero(id);
     $("#list-view").hidden = true;
+    $("#highlights-view").hidden = true;
+    $("#highlights-view").innerHTML = "";
     $("#hero-view").hidden = false;
     scrollToY(0);
     ScrollTrigger.refresh();
@@ -775,11 +899,26 @@
     loadHeroData(id);
   }
 
+  function showHighlights() {
+    if (current === "list") listScroll = window.scrollY;
+    heroCtx && heroCtx.revert();
+    heroCtx = null;
+    $("#list-view").hidden = true;
+    $("#hero-view").hidden = true;
+    $("#hero-view").innerHTML = "";
+    $("#highlights-view").hidden = false;
+    renderHighlightsPage();
+    scrollToY(0);
+    ScrollTrigger.refresh();
+    animateHighlightsIn();
+  }
+
   function route(first = false) {
     const m = location.hash.match(/^#\/hero\/(\d+)/);
-    const next = m ? `hero:${m[1]}` : "list";
+    const hl = /^#\/highlights/.test(location.hash);
+    const next = m ? `hero:${m[1]}` : hl ? "highlights" : "list";
     if (next === current) return;
-    const go = () => { m ? showHero(Number(m[1])) : showList(); current = next; };
+    const go = () => { m ? showHero(Number(m[1])) : hl ? showHighlights() : showList(); current = next; };
     if (first) go(); else wipe(go);
   }
 
@@ -860,6 +999,8 @@
 
     gsap.from(".num", { y: 60, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.1, scrollTrigger: { trigger: ".numbers", start: "top 85%" } });
     gsap.from(".controls, .legend", { y: 40, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.1, scrollTrigger: { trigger: ".controls", start: "top 90%" } });
+
+    gsap.from(".hl-card", { y: 70, opacity: 0, duration: 1, ease: "expo.out", stagger: 0.06, clearProps: "transform,opacity", scrollTrigger: { trigger: "#hl-row", start: "top 88%" } });
 
     // Hero cards flip in, batch by batch, as they scroll into view.
     gsap.set(".card", { opacity: 0, y: 80, rotateX: -35, scale: 0.9 });
@@ -1059,6 +1200,7 @@
     registerServiceWorker();
     const loader = startLoader();
     initEmbers();
+    loadHighlights();
 
     loadPatch().then((p) => {
       if (!p) return;
@@ -1074,6 +1216,8 @@
       loader.fail(err);
       return;
     }
+
+    renderHomeHighlights(await loadHighlights());
 
     // Wait briefly so the patch number lands in the title before it animates.
     await Promise.race([loadPatch().catch(() => {}), new Promise((r) => setTimeout(r, 800))]);
@@ -1092,8 +1236,9 @@
     initScrollUi();
     initCursor();
     initTilt();
+    initPlayer();
 
-    const firstIsHero = /^#\/hero\/\d+/.test(location.hash);
+    const firstIsHero = /^#\/(hero\/\d+|highlights)/.test(location.hash);
     await loader.finish();
     if (!firstIsHero) animateListIn();
     route(true);

@@ -117,6 +117,18 @@
         <div class="num"><b data-count id="n-best">0</b><span>Highest win rate</span></div>
       </section>
 
+      <!-- Tournament highlights, filled from data/highlights.json -->
+      <section class="wrap highlights" id="highlights" hidden>
+        <div class="hl-head">
+          <div>
+            <p class="eyebrow"><span class="line"></span>Fresh from the pro scene</p>
+            <h2 class="section-title split-words">Tournament highlights</h2>
+          </div>
+          <a class="btn btn-ghost" href="#/highlights"><span>All highlights</span></a>
+        </div>
+        <div class="hl-row" id="hl-row"></div>
+      </section>
+
       <!-- All heroes -->
       <section class="wrap browse" id="heroes">
         <div class="browse-head">
@@ -173,10 +185,24 @@
     </div>
 
     <div id="hero-view" hidden></div>
+    <div id="highlights-view" hidden></div>
   </main>
 
+  <!-- Highlight video player -->
+  <div class="player" id="player" role="dialog" aria-modal="true" aria-label="Highlight video" hidden>
+    <div class="player-backdrop" data-close></div>
+    <div class="player-box">
+      <button class="player-close" type="button" data-close aria-label="Close video">✕</button>
+      <div class="player-frame"></div>
+      <div class="player-info">
+        <p class="player-title"></p>
+        <a class="player-yt" target="_blank" rel="noopener">Watch on YouTube ↗</a>
+      </div>
+    </div>
+  </div>
+
   <footer class="wrap foot">
-    Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota</a>. Tiers are calculated from win rate and pick rate in the selected bracket. Dota 2 is a trademark of Valve Corporation; this site is not affiliated with Valve.
+    Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota</a>. Highlight videos are embedded from their creators' YouTube channels. Tiers are calculated from win rate and pick rate in the selected bracket. Dota 2 is a trademark of Valve Corporation; this site is not affiliated with Valve.
   </footer>
 
   <script src="vendor/gsap.min.js"></script>
