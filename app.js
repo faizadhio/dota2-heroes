@@ -885,6 +885,30 @@
       ${talents ? `<section class="wrap hero-talents"><div class="panel talents" data-rv><h2>Talents</h2><div class="tl">${talents}</div></div></section>` : ""}` : ""}`;
   }
 
+  // The band at the bottom of a hero page, like dota2.com's: the neighbouring heroes' renders stand on it,
+  // leaning out of each side, with a link back to the full list in the middle.
+  function heroFootNav(prev, next) {
+    const card = (h, dir) => {
+      const [render, older] = heroRenders(h);
+      const attack = h.attack_type || "";
+      return `<a href="#/hero/${h.id}" class="fn-card ${dir} attr-${esc(h.primary_attr)}" aria-label="${dir === "prev" ? "Previous" : "Next"} hero, ${esc(h.localized_name)}">
+          <span class="fn-art" aria-hidden="true"><img src="${esc(render)}" data-alt-src="${esc(older)}" data-last-src="${esc(heroImg(h))}" alt="" loading="lazy" decoding="async"></span>
+          <span class="fn-text">
+            <small>${dir === "prev" ? "Previous hero" : "Next hero"}</small>
+            <b>${esc(h.localized_name)}</b>
+            <span class="fn-type">${attrIcon(h.primary_attr)}${esc(attack)}</span>
+          </span>
+          <svg class="fn-arrow" viewBox="0 0 12 12" aria-hidden="true"><path d="${dir === "prev" ? "M8 2 3 6l5 4z" : "m4 2 5 4-5 4z"}"/></svg>
+        </a>`;
+    };
+    return `
+      <nav class="hero-footnav" aria-label="Browse heroes" data-rv>
+        ${card(prev, "prev")}
+        <a href="#/" class="fn-all" aria-label="All heroes"><span class="fn-grid" aria-hidden="true">${"<i></i>".repeat(6)}</span><small>All heroes</small></a>
+        ${card(next, "next")}
+      </nav>`;
+  }
+
   function renderHero(id, p) {
     const h = state.heroes.find((x) => x.id === id);
     const view = $("#hero-view");
@@ -949,7 +973,9 @@
             <div id="matchups"><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(5)}</div></div>
           </section>
         </aside>
-      </div>`;
+      </div>
+
+      ${heroFootNav(prev, next)}`;
 
     setHeroVideo($(".hero-video", view), h);
     onScreen.observe($(".hero-video", view));
@@ -962,6 +988,13 @@
     });
     // Icons that don't exist on the CDN fall back to a coloured dot or the ability's initials.
     $$("img.attr-ico, img.side-ico", view).forEach((im) => im.addEventListener("error", () => { im.replaceWith(Object.assign(document.createElement("i"), { className: `attr ${im.dataset.attr}` })); }, { once: true }));
+    // Neighbour renders try the older CDN path, then the portrait, before hiding.
+    $$(".fn-art img", view).forEach((im) => im.addEventListener("error", function next() {
+      const alt = im.dataset.altSrc || im.dataset.lastSrc;
+      if (!alt) { im.removeEventListener("error", next); im.parentNode.classList.add("missing"); return; }
+      if (im.dataset.altSrc) delete im.dataset.altSrc; else { delete im.dataset.lastSrc; im.parentNode.classList.add("portrait"); }
+      im.src = alt;
+    }));
     $$(".ab img, .ab-thumb img, .ad-img", view).forEach((im) => im.addEventListener("error", () => im.classList.add("missing"), { once: true }));
     if (p) initProfile(view, p, h);
     const art = $(".hero-art", view);
