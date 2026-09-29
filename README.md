@@ -8,6 +8,8 @@ Built with the OpenDota API. A static site (`index.html`, `style.css`, `app.js`)
 
 A GitHub Action (`.github/workflows/snapshot.yml`) runs `scripts/snapshot.mjs` every day and commits a snapshot of that data to `data/`. The site reads the snapshot when it is less than three days old and falls back to the live API otherwise. Run the workflow by hand from the Actions tab to refresh it right away.
 
+The same workflow also runs `scripts/profiles.mjs`, which copies each hero's lore, abilities, talents, roles and base stats from the data feed behind the dota2.com hero pages into `data/profiles/`. That feed can't be read from the browser (it sends no CORS headers), so the hero page reads these copies.
+
 A second workflow (`.github/workflows/highlights.yml`) runs `scripts/highlights.mjs` every six hours. It collects the latest highlight videos from the PGL, ESL, BLAST and Dota 2 YouTube channels into `data/highlights.json`, and the Highlights page (`#/highlights`) embeds them from YouTube; nothing is downloaded or re-hosted. It reads the public channel feeds and pages; adding a `YOUTUBE_API_KEY` repository secret (a free YouTube Data API key) makes it use the official API instead. Edit `CHANNELS` in that script to change the sources.
 
 `sw.js` is a service worker: fonts and libraries are served from cache, pages and data go to the network first and fall back to the cache when offline. Phones and data-saver connections get still hero renders instead of the videos.
