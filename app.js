@@ -760,38 +760,58 @@
       </div>`;
   }
 
+  // One entry per ability, innate first, then an extra entry for each Aghanim's Scepter or Shard upgrade,
+  // the way the ability strip on dota2.com lists them.
+  function abilityEntries(p) {
+    const base = [...p.abilities.filter((a) => a.innate), ...p.abilities.filter((a) => !a.innate)];
+    const out = base.map((a) => ({ key: a.name, a, kind: "base" }));
+    for (const kind of ["scepter", "shard"]) {
+      for (const a of base) {
+        const granted = kind === "scepter" ? a.fromScepter : a.fromShard;
+        if (a[kind] && !granted) out.push({ key: `${a.name}:${kind}`, a, kind });
+      }
+    }
+    return out;
+  }
+  const abilityVideo = (h, name, ext) => `${CDN}/apps/dota2/videos/dota_react/abilities/${heroSlug(h)}/${name}.${ext}`;
+  const abButton = (e, cls, selected) => `<button type="button" class="${cls}${e.a.innate ? " innate" : ""}${e.kind !== "base" ? ` up ${e.kind}` : ""}" data-ab="${esc(e.key)}" aria-pressed="${selected}" title="${esc(e.a.title)}${e.kind !== "base" ? ` (Aghanim's ${e.kind === "scepter" ? "Scepter" : "Shard"})` : ""}">
+      <img src="${esc(abilityImg(e.a.name))}" alt="${esc(e.a.title)}" loading="lazy"><span>${esc(e.a.title.slice(0, 2))}</span>${e.kind !== "base" ? `<i class="aghs-badge ${e.kind}" aria-hidden="true"></i>` : ""}
+    </button>`;
+
   function renderAbilityRow(p) {
     if (!p || !p.abilities.length) return "";
-    const list = [...p.abilities.filter((a) => a.innate), ...p.abilities.filter((a) => !a.innate)];
+    const list = abilityEntries(p).filter((e) => e.kind === "base");
     return `
       <div class="hero-abilities" data-rv style="--d:6">
         <h3>Abilities</h3>
-        <div class="ab-row" role="tablist" aria-label="Abilities">
-          ${list.map((a, i) => `<button type="button" role="tab" class="ab${a.innate ? " innate" : ""}${a.ult ? " ult" : ""}" data-ab="${esc(a.name)}" aria-selected="${i === 0}" title="${esc(a.title)}">
-            <img src="${esc(abilityImg(a.name))}" alt="${esc(a.title)}" loading="lazy"><span>${esc(a.title.slice(0, 2))}</span>
-          </button>`).join("")}
-        </div>
+        <div class="ab-row" aria-label="Abilities">${list.map((e, i) => abButton(e, "ab", i === 0)).join("")}</div>
       </div>`;
   }
 
-  function abilityDetail(a) {
+  function abilityDetail(e) {
+    const { a, kind } = e;
     const vals = (arr) => arr.map((v) => fixed(v)).join(" / ");
-    const tags = [a.innate && "Innate", a.ult && "Ultimate", a.fromScepter && "From Aghanim's Scepter", a.fromShard && "From Aghanim's Shard"].filter(Boolean);
+    const tags = kind === "scepter" ? ["Scepter ability upgrade"] : kind === "shard" ? ["Shard ability upgrade"]
+      : [a.innate && "Innate", a.ult && "Ultimate", a.fromScepter && "Granted by Aghanim's Scepter", a.fromShard && "Granted by Aghanim's Shard"].filter(Boolean);
+    const base = kind === "base";
     return `
       <div class="ad-head">
         <img src="${esc(abilityImg(a.name))}" alt="" class="ad-img">
-        <div><h3>${esc(a.title)}</h3>${tags.length ? `<p class="ad-tags">${tags.map((t) => `<span>${esc(t)}</span>`).join("")}</p>` : ""}</div>
+        <div>
+          <h3>${esc(a.title)}</h3>
+          ${tags.length ? `<p class="ad-tags">${tags.map((t) => `<span class="${kind}">${esc(t)}</span>`).join("")}</p>` : ""}
+          <p class="ad-desc">${safeHtml(base ? a.desc : a[kind])}</p>
+        </div>
       </div>
-      <p class="ad-desc">${safeHtml(a.desc)}</p>
-      ${(a.values || []).length ? `<dl class="ad-values">${a.values.map((v) => `<div><dt>${esc(v.label)}</dt><dd>${esc(v.value)}</dd></div>`).join("")}</dl>` : ""}
-      ${a.cooldowns.length || a.mana.length ? `<div class="ad-costs">
-        ${a.cooldowns.length ? `<span><i class="cd" aria-hidden="true"></i><small>Cooldown</small>${vals(a.cooldowns)}</span>` : ""}
-        ${a.mana.length ? `<span><i class="mc" aria-hidden="true"></i><small>Mana</small>${vals(a.mana)}</span>` : ""}
-      </div>` : ""}
-      ${a.scepter ? `<p class="ad-aghs scepter"><b>Aghanim's Scepter</b>${safeHtml(a.scepter)}</p>` : ""}
-      ${a.shard ? `<p class="ad-aghs shard"><b>Aghanim's Shard</b>${safeHtml(a.shard)}</p>` : ""}
-      ${a.notes.length ? `<ul class="ad-notes">${a.notes.map((n) => `<li>${safeHtml(n)}</li>`).join("")}</ul>` : ""}
-      ${a.lore ? `<p class="ad-lore">${safeHtml(a.lore)}</p>` : ""}`;
+      <div class="ad-body">
+        ${base && (a.values || []).length ? `<dl class="ad-values">${a.values.map((v) => `<div><dt>${esc(v.label)}</dt><dd>${esc(v.value)}</dd></div>`).join("")}</dl>` : ""}
+        ${a.cooldowns.length || a.mana.length ? `<div class="ad-costs">
+          ${a.cooldowns.length ? `<span><i class="cd" aria-hidden="true"></i><small>Cooldown</small>${vals(a.cooldowns)}</span>` : ""}
+          ${a.mana.length ? `<span><i class="mc" aria-hidden="true"></i><small>Mana</small>${vals(a.mana)}</span>` : ""}
+        </div>` : ""}
+        ${base && a.notes.length ? `<ul class="ad-notes">${a.notes.map((n) => `<li>${safeHtml(n)}</li>`).join("")}</ul>` : ""}
+        ${a.lore ? `<p class="ad-lore">${safeHtml(a.lore)}</p>` : ""}
+      </div>`;
   }
 
   function renderProfileBody(h, p) {
@@ -843,9 +863,19 @@
         </div>
       </section>
       ${p.abilities.length ? `<section class="wrap hero-skills">
-        <div class="panel ab-detail" id="ab-detail" data-rv aria-live="polite"></div>
-        ${talents ? `<div class="panel talents" data-rv style="--d:1"><h2>Talents</h2><div class="tl">${talents}</div></div>` : ""}
-      </section>` : ""}`;
+        <h2 class="skills-title" data-rv>Ability details</h2>
+        <div class="skills-grid">
+          <div class="ad-stage" data-rv>
+            <div class="ad-media">
+              <video class="ad-video" muted loop playsinline preload="none" aria-hidden="true"></video>
+              <img class="ad-fallback" alt="">
+            </div>
+            <div class="ad-strip" aria-label="All abilities">${abilityEntries(p).map((e, i) => abButton(e, "ab-thumb", i === 0)).join("")}</div>
+          </div>
+          <div class="ab-detail" id="ab-detail" data-rv style="--d:1" aria-live="polite"></div>
+        </div>
+      </section>
+      ${talents ? `<section class="wrap hero-talents"><div class="panel talents" data-rv><h2>Talents</h2><div class="tl">${talents}</div></div></section>` : ""}` : ""}`;
   }
 
   function renderHero(id, p) {
@@ -925,8 +955,8 @@
     });
     // Icons that don't exist on the CDN fall back to a coloured dot or the ability's initials.
     $$("img.attr-ico, img.side-ico", view).forEach((im) => im.addEventListener("error", () => { im.replaceWith(Object.assign(document.createElement("i"), { className: `attr ${im.dataset.attr}` })); }, { once: true }));
-    $$(".ab img, .ad-img", view).forEach((im) => im.addEventListener("error", () => im.classList.add("missing"), { once: true }));
-    if (p) initProfile(view, p);
+    $$(".ab img, .ab-thumb img, .ad-img", view).forEach((im) => im.addEventListener("error", () => im.classList.add("missing"), { once: true }));
+    if (p) initProfile(view, p, h);
     const art = $(".hero-art", view);
     requestAnimationFrame(() => requestAnimationFrame(() => art.classList.add("in")));
     reveal(view);
@@ -934,7 +964,7 @@
     return h;
   }
 
-  function initProfile(view, p) {
+  function initProfile(view, p, h) {
     const lore = $(".hero-lore-btn", view);
     if (lore) lore.addEventListener("click", () => {
       const bio = $(".hero-bio", view);
@@ -943,19 +973,38 @@
       lore.textContent = bio.hidden ? "Read full history" : "Hide history";
     });
     const detail = $("#ab-detail", view);
-    const byName = new Map(p.abilities.map((a) => [a.name, a]));
-    const pick = (btn, scroll) => {
-      $$(".ab", view).forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
-      if (!detail) return;
-      detail.innerHTML = abilityDetail(byName.get(btn.dataset.ab));
+    if (!detail) return;
+    const entries = new Map(abilityEntries(p).map((e) => [e.key, e]));
+    const video = $(".ad-video", view);
+    const media = $(".ad-media", view);
+    const fallback = $(".ad-fallback", view);
+    onScreen.observe(video);
+    let current = null;
+    const pick = (key, scroll) => {
+      const e = entries.get(key);
+      if (!e) return;
+      $$(".ab, .ab-thumb", view).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ab === key || (e.kind !== "base" && b.classList.contains("ab") && b.dataset.ab === e.a.name))));
+      detail.innerHTML = abilityDetail(e);
       const im = $(".ad-img", detail);
       if (im) im.addEventListener("error", () => im.classList.add("missing"), { once: true });
-      if (scroll) detail.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+      // Upgrades reuse the ability's own clip, as dota2.com does.
+      if (current !== e.a.name) {
+        current = e.a.name;
+        media.classList.remove("novideo", "ready");
+        fallback.src = abilityImg(e.a.name);
+        video.poster = abilityVideo(h, e.a.name, "jpg");
+        video.innerHTML = `<source src="${esc(abilityVideo(h, e.a.name, "webm"))}" type="video/webm"><source src="${esc(abilityVideo(h, e.a.name, "mp4"))}" type="video/mp4">`;
+        $("source:last-child", video).addEventListener("error", () => { if (current === e.a.name) media.classList.add("novideo"); }, { once: true });
+        video.load();
+        // Off screen it waits; the shared observer starts it once it scrolls into view.
+        if (video._visible) video.play().catch(() => {});
+      }
+      if (scroll) $(".hero-skills", view).scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     };
-    const row = $(".ab-row", view);
-    if (!row) return;
-    row.addEventListener("click", (e) => { const b = e.target.closest(".ab"); if (b) pick(b, true); });
-    pick($(".ab", row), false);
+    video.addEventListener("playing", () => media.classList.add("ready"));
+    $(".ab-row", view)?.addEventListener("click", (ev) => { const b = ev.target.closest(".ab"); if (b) pick(b.dataset.ab, true); });
+    $(".ad-strip", view).addEventListener("click", (ev) => { const b = ev.target.closest(".ab-thumb"); if (b) pick(b.dataset.ab, false); });
+    pick(entries.keys().next().value, false);
   }
 
   async function loadHeroData(id) {

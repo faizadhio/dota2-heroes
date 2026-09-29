@@ -267,7 +267,7 @@ video.portrait {
 .ab span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 18px/1 var(--display); color: var(--muted); text-transform: uppercase; }
 .ab.innate { border-radius: 50%; }
 .ab:hover { filter: none; transform: translateY(-3px); }
-.ab[aria-selected="true"] { filter: none; border-color: color-mix(in srgb, var(--ac) 60%, #fff); box-shadow: 0 0 22px -4px color-mix(in srgb, var(--ac) 80%, transparent); }
+.ab[aria-pressed="true"] { filter: none; border-color: color-mix(in srgb, var(--ac) 60%, #fff); box-shadow: 0 0 22px -4px color-mix(in srgb, var(--ac) 80%, transparent); }
 
 /* vertical name and prev / all / next, like the edge of a dota2.com hero page */
 .hero-side { position: absolute; left: 28px; bottom: 110px; display: none; align-items: center; gap: 12px; writing-mode: vertical-rl; transform: rotate(180deg); font: 600 15px/1 var(--display); letter-spacing: .24em; text-transform: uppercase; color: #d5d7de; }
@@ -325,8 +325,35 @@ video.portrait {
 .st-ico.turn { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 4a8 8 0 0 1 7.4 5H22l-3.5 4L15 9h2.1A6 6 0 0 0 6.3 10L4.4 9.3A8 8 0 0 1 12 4Zm-7.5 7L8 15H5.9a6 6 0 0 0 10.8 1l1.9.7A8 8 0 0 1 4.6 15H2Z'/%3E%3C/svg%3E"); }
 .st-ico.vision { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 5C6.5 5 2.7 9 1 12c1.7 3 5.5 7 11 7s9.3-4 11-7c-1.7-3-5.5-7-11-7Zm0 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z'/%3E%3C/svg%3E"); }
 
-/* ability detail and talents */
-.hero-skills { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 18px; align-items: start; padding: 40px 0 18px; }
+/* ability details: clip on the left with every ability below it, text on the right */
+.hero-skills { padding: 56px 0 18px; scroll-margin-top: 70px; }
+.skills-title { margin: 0 0 24px; text-align: center; font: 500 22px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; }
+.skills-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.ad-media { position: relative; aspect-ratio: 16 / 9; background: #0c0d11 center / cover no-repeat; border: 1px solid var(--border); overflow: hidden; }
+.ad-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ad-fallback { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); object-fit: cover; opacity: 0; transition: opacity .3s; border-radius: 6px; }
+.ad-media.novideo .ad-video { display: none; }
+.ad-media.novideo .ad-fallback { opacity: .9; }
+.ad-media.novideo::after { content: "No clip for this ability"; position: absolute; left: 0; right: 0; top: 14px; text-align: center; color: var(--muted); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+.ad-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: -26px; padding: 0 12px; position: relative; z-index: 1; }
+.ab-thumb { position: relative; width: 78px; height: 78px; padding: 0; border: 2px solid #0a0b0e; background: #111317; cursor: pointer; overflow: hidden; filter: grayscale(1) brightness(.7); transition: filter .25s, transform .3s cubic-bezier(.2, .7, .2, 1), border-color .25s; }
+.ab-thumb img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
+.ab-thumb img.missing { display: none; }
+.ab-thumb span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 18px/1 var(--display); color: var(--muted); text-transform: uppercase; }
+.ab-thumb:hover { filter: grayscale(.3) brightness(.95); transform: translateY(-3px); }
+.ab-thumb[aria-pressed="true"] { filter: none; border-color: color-mix(in srgb, var(--ac) 55%, #fff); box-shadow: 0 0 22px -4px color-mix(in srgb, var(--ac) 80%, transparent); }
+.aghs-badge { position: absolute; z-index: 2; right: 4px; bottom: 4px; width: 26px; height: 26px; background: #fff; filter: drop-shadow(0 1px 2px #000); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+.aghs-badge.scepter { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2c1.7 1.4 2.6 3 2.6 4.6 0 1.3-.7 2.3-1.6 2.9V20l-1 2-1-2V9.5c-.9-.6-1.6-1.6-1.6-2.9C9.4 5 10.3 3.4 12 2Zm-5 5 2 1-1 3 2 1v1H8.5L6 10Zm10 0 1 3-2.5 3H13v-1l2-1-1-3Z'/%3E%3C/svg%3E"); }
+.aghs-badge.shard { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 18 9 12 22 6 9Zm0 3.5L8.6 9.3 12 17.2l3.4-7.9Z'/%3E%3C/svg%3E"); }
+.ab .aghs-badge { width: 20px; height: 20px; }
+.ab-detail { background: #0e0f13; border: 1px solid var(--border); }
+.ab-detail .ad-head { align-items: flex-start; padding: 22px 22px 18px; margin: 0; background: rgba(255, 255, 255, .03); }
+.ab-detail .ad-head h3 { text-transform: uppercase; letter-spacing: .02em; }
+.ab-detail .ad-desc { margin: 8px 0 0; }
+.ad-body { padding: 20px 22px 22px; }
+.ad-tags span.scepter, .ad-tags span.shard { background: rgba(60, 110, 230, .3); border-color: rgba(110, 160, 255, .5); color: #d5e3ff; }
+.hero-talents { padding: 18px 0; }
+.hero-talents .talents { max-width: 760px; margin: 0 auto; }
 .ad-head { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
 .ad-img { width: 64px; height: 64px; border-radius: 4px; object-fit: cover; border: 1px solid rgba(255, 255, 255, .15); }
 .ad-img.missing { visibility: hidden; }
@@ -354,7 +381,7 @@ video.portrait {
 .tl-row span:first-child { justify-content: flex-end; text-align: right; }
 .tl-row b { display: grid; place-items: center; border-radius: 50%; align-self: center; width: 44px; height: 44px; font: 700 16px/1 var(--display); color: var(--gold); border: 1.5px solid rgba(240, 192, 90, .55); background: radial-gradient(circle, rgba(240, 192, 90, .16), transparent 70%); }
 .hero-meta { padding: 0 0 18px; }
-.hero-skills + .hero-meta, .hero-bar + .hero-meta { padding-top: 40px; }
+.hero-skills + .hero-meta, .hero-talents + .hero-meta, .hero-bar + .hero-meta { padding-top: 40px; }
 .meta-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: center; }
 .mp-head h2 { margin-bottom: 6px; }
 .mp-head .hint { margin: 0; }
@@ -476,7 +503,16 @@ video.portrait {
   .hb-col { padding: 0; border-left: 0; flex-direction: column-reverse; gap: 16px; }
   .hb-col + .hb-col { padding-top: 26px; border-top: 1px solid rgba(255, 255, 255, .1); }
   .hb-col h4 { text-align: left; font-size: 13px; }
-  .hero-skills { grid-template-columns: 1fr; padding-top: 26px; }
+  .hero-skills { padding-top: 34px; }
+  .skills-title { font-size: 16px; margin-bottom: 16px; }
+  .skills-grid { grid-template-columns: 1fr; gap: 18px; }
+  .ad-strip { margin: 10px -16px 0; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; padding: 4px 16px; gap: 8px; scrollbar-width: none; }
+  .ad-strip::-webkit-scrollbar { display: none; }
+  .ab-thumb { width: 54px; height: 54px; flex: none; }
+  .ab-detail .ad-head { padding: 18px 16px 14px; gap: 12px; }
+  .ab-detail .ad-img { width: 44px; height: 44px; }
+  .ad-body { padding: 16px; }
+  .aghs-badge { width: 18px; height: 18px; }
   .meta-panel { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
