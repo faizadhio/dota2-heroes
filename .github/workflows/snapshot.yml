@@ -19,6 +19,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Fetch tournament highlights
+        run: node scripts/highlights.mjs
+        continue-on-error: true
       - run: node scripts/snapshot.mjs
       - name: Commit the new snapshot
         run: |
