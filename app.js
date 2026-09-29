@@ -879,11 +879,29 @@
             </div>
             <div class="ad-strip" aria-label="All abilities">${abilityEntries(p).map((e, i) => abButton(e, "ab-thumb", i === 0)).join("")}</div>
           </div>
-          <div class="ab-detail" id="ab-detail" data-rv style="--d:1" aria-live="polite"></div>
+          <div class="ab-detail" id="ab-detail" data-rv style="--d:1">
+            <div class="ad-live" aria-live="polite"></div>
+            <div class="ad-sizer" aria-hidden="true">${abilityEntries(p).map((e) => `<div>${abilityDetail(e)}</div>`).join("")}</div>
+          </div>
         </div>
       </section>
       ${talents ? `<section class="wrap hero-talents"><div class="panel talents" data-rv><h2>Talents</h2><div class="tl">${talents}</div></div></section>` : ""}` : ""}`;
   }
+
+  // Big display names wrap only between words; when a single word is still wider than its box
+  // ("BATRIDER" on a phone), the font shrinks until it fits instead of breaking the word.
+  function fitText(el, min = 16) {
+    if (!el || !el.isConnected) return;
+    el.style.fontSize = "";
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth + 1 && size > min) {
+      size = Math.max(min, size * 0.94);
+      el.style.fontSize = `${size}px`;
+    }
+  }
+  const fitNames = (root) => $$(".hero-name, .fn-text b", root).forEach((el) => fitText(el, el.matches(".hero-name") ? 28 : 14));
+  let fitTimer = 0;
+  addEventListener("resize", () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitNames($("#hero-view")), 150); });
 
   // The band at the bottom of a hero page, like dota2.com's: the neighbouring heroes' renders stand on it,
   // leaning out of each side, with a link back to the full list in the middle.
@@ -996,6 +1014,8 @@
       im.src = alt;
     }));
     $$(".ab img, .ab-thumb img, .ad-img", view).forEach((im) => im.addEventListener("error", () => im.classList.add("missing"), { once: true }));
+    fitNames(view);
+    document.fonts?.ready.then(() => fitNames(view));
     if (p) initProfile(view, p, h);
     const art = $(".hero-art", view);
     requestAnimationFrame(() => requestAnimationFrame(() => art.classList.add("in")));
@@ -1014,6 +1034,9 @@
     });
     const detail = $("#ab-detail", view);
     if (!detail) return;
+    // Every ability's text also sits invisibly in the same grid cell, so the panel is always as tall as
+    // the longest one and the talents below it don't move when another ability is picked.
+    const live = $(".ad-live", detail);
     const entries = new Map(abilityEntries(p).map((e) => [e.key, e]));
     const media = $(".ad-media", view);
     const fallback = $(".ad-fallback", view);
@@ -1052,13 +1075,13 @@
       $$(".ab, .ab-thumb", view).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ab === key || (e.kind !== "base" && b.classList.contains("ab") && b.dataset.ab === e.a.name))));
       // The text fades out, swaps while invisible and fades back in.
       const swap = () => {
-        detail.innerHTML = abilityDetail(e);
-        const im = $(".ad-img", detail);
+        live.innerHTML = abilityDetail(e);
+        const im = $(".ad-img", live);
         if (im) im.addEventListener("error", () => im.classList.add("missing"), { once: true });
         requestAnimationFrame(() => detail.classList.remove("swap"));
       };
       clearTimeout(textTimer);
-      if (!detail.innerHTML || reduceMotion) swap();
+      if (!live.innerHTML || reduceMotion) swap();
       else { detail.classList.add("swap"); textTimer = setTimeout(swap, 180); }
       const clip = clipName(h, e);
       if (current !== clip) { current = clip; showClip(clip, e.a.name); }
