@@ -15,5 +15,6 @@ jobs:
             curl -s -A "Mozilla/5.0" "$u" -o "b_$(echo $u | md5sum | cut -c1-6).js"
           done
           ls -la b_*.js
-          for f in b_*.js; do grep -o '.\{200\}dota_react/abilities.\{300\}' "$f" | head -5; done
-          for f in b_*.js; do grep -o '.\{150\}_shard.\{150\}' "$f" | grep -i video | head -5; grep -o '.\{150\}scepter.\{150\}' "$f" | grep -i video | head -5; done
+          for f in b_*.js; do grep -o '.\{3000\}VIDEO_URL}abilities.\{3500\}' "$f" | head -1 | fold -w 400; done
+          echo ----
+          for f in b_*.js; do grep -o '.\{300\}VIDEO_URL=.\{300\}' "$f" | head -2; done
