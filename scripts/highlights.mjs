@@ -1,6 +1,9 @@
-// Collects the latest Dota 2 tournament highlight videos from YouTube channel RSS feeds (no API key needed)
-// and writes them to data/highlights.json. Run daily by .github/workflows/snapshot.yml.
-import { mkdir, writeFile } from "node:fs/promises";
+// Collects the latest Dota 2 tournament highlight videos from YouTube and writes them to data/highlights.json.
+// Run by .github/workflows/highlights.yml. Sources, tried per channel until one works:
+//   1. YouTube Data API, only when a YOUTUBE_API_KEY secret is set (most reliable);
+//   2. the channel's public RSS feed;
+//   3. the channel's public "Videos" page.
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 const CHANNELS = [
   { id: "UC7VWLs_Ivccq22rM2_xo0Rg", label: "PGL" },
@@ -12,43 +15,118 @@ const CHANNELS = [
 const HIGHLIGHT = /highlight|best (moments|plays)|top \d+|top plays|moments|recap|rampage|ultra kill/i;
 const MAX = 48;
 const OUT = new URL("../data/highlights.json", import.meta.url);
+const KEY = process.env.YOUTUBE_API_KEY;
+const HEADERS = {
+  "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36",
+  "accept-language": "en-US,en;q=0.9",
+  // Skips the EU cookie consent page.
+  cookie: "CONSENT=YES+cb; SOCS=CAI"
+};
 
+async function get(url, type = "text") {
+  const res = await fetch(url, { headers: HEADERS });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return type === "json" ? res.json() : res.text();
+}
+
+// ---- 1. Data API ----
+async function fromApi({ id, label }) {
+  const uploads = "UU" + id.slice(2);
+  const list = await get(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${uploads}&key=${KEY}`, "json");
+  const items = list.items.map((i) => i.snippet).filter((s) => s.resourceId && HIGHLIGHT.test(s.title));
+  if (!items.length) return [];
+  const ids = items.map((s) => s.resourceId.videoId);
+  const stats = await get(`https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${ids.join(",")}&key=${KEY}`, "json");
+  const byId = new Map(stats.items.map((v) => [v.id, v]));
+  return items.map((s) => {
+    const v = byId.get(s.resourceId.videoId);
+    return { id: s.resourceId.videoId, title: s.title, channel: label, published: s.publishedAt,
+      views: Number(v?.statistics?.viewCount || 0), duration: isoDuration(v?.contentDetails?.duration) };
+  });
+}
+function isoDuration(d) {
+  const m = d && d.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0;
+}
+
+// ---- 2. RSS ----
 const decode = (s) => s
   .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
   .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
   .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 const tag = (xml, name) => { const m = xml.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`)); return m ? decode(m[1]).trim() : ""; };
 
-async function feed({ id, label }) {
-  const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`);
-  if (!res.ok) throw new Error(`${res.status}`);
-  const xml = await res.text();
+async function fromRss({ id, label }) {
+  const xml = await get(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`);
   return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, e]) => ({
     id: tag(e, "yt:videoId"),
     title: tag(e, "title"),
     channel: label,
     published: tag(e, "published"),
     views: Number((e.match(/<media:statistics views="(\d+)"/) || [])[1] || 0)
-  })).filter((v) => /^[\w-]{11}$/.test(v.id) && HIGHLIGHT.test(v.title));
+  })).filter((v) => HIGHLIGHT.test(v.title));
 }
 
+// ---- 3. Channel page ----
+const UNITS = { second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000 };
+const fromAgo = (text) => {
+  const m = String(text || "").match(/(\d+)\s+(second|minute|hour|day|week|month|year)/);
+  return new Date(Date.now() - (m ? +m[1] * UNITS[m[2]] * 1000 : 0)).toISOString();
+};
+const clock = (t) => String(t || "").split(":").reduce((a, n) => a * 60 + (+n || 0), 0);
+const text = (t) => (t && (t.simpleText || (t.runs || []).map((r) => r.text).join(""))) || "";
+
+function* walk(node) {
+  if (!node || typeof node !== "object") return;
+  if (node.videoRenderer) yield node.videoRenderer;
+  for (const v of Object.values(node)) yield* walk(v);
+}
+
+async function fromPage({ id, label }) {
+  const html = await get(`https://www.youtube.com/channel/${id}/videos?hl=en&gl=US`);
+  const m = html.match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
+  if (!m) throw new Error("no ytInitialData");
+  const videos = [];
+  for (const r of walk(JSON.parse(m[1]))) {
+    const title = text(r.title);
+    if (!r.videoId || !HIGHLIGHT.test(title)) continue;
+    videos.push({ id: r.videoId, title, channel: label, published: fromAgo(text(r.publishedTimeText)),
+      views: Number(text(r.viewCountText).replace(/\D/g, "")) || 0, duration: clock(text(r.lengthText)) });
+  }
+  return videos;
+}
+
+const sources = [...(KEY ? [["api", fromApi]] : []), ["rss", fromRss], ["page", fromPage]];
 const videos = [];
 for (const ch of CHANNELS) {
-  try {
-    const list = await feed(ch);
-    console.log(`${ch.label}: ${list.length} highlight videos`);
-    videos.push(...list);
-  } catch (err) {
-    console.warn(`${ch.label}: ${err.message}`);
+  const tried = [];
+  for (const [name, fn] of sources) {
+    try {
+      const list = (await fn(ch)).filter((v) => /^[\w-]{11}$/.test(v.id));
+      console.log(`${ch.label}: ${list.length} highlight videos via ${name}`);
+      videos.push(...list);
+      break;
+    } catch (err) {
+      tried.push(`${name} ${err.message}`);
+    }
   }
+  if (tried.length === sources.length) console.warn(`${ch.label}: failed (${tried.join(", ")})`);
 }
 
 // Never replace a good file with an empty one when YouTube is unreachable.
 if (!videos.length) {
   console.warn("highlights: nothing fetched, keeping the previous file");
 } else {
-  videos.sort((a, b) => Date.parse(b.published) - Date.parse(a.published));
+  // Page-scraped dates are approximate ("3 days ago"); keep the exact date from the previous run when we have it.
+  let previous = new Map();
+  try { previous = new Map(JSON.parse(await readFile(OUT, "utf8")).videos.map((v) => [v.id, v.published])); } catch { /* first run */ }
+  const seen = new Set();
+  const out = videos
+    .filter((v) => !seen.has(v.id) && seen.add(v.id))
+    .map((v) => ({ ...v, published: previous.get(v.id) || v.published }))
+    .sort((a, b) => Date.parse(b.published) - Date.parse(a.published))
+    .slice(0, MAX);
   await mkdir(new URL("./", OUT), { recursive: true });
-  await writeFile(OUT, JSON.stringify({ generatedAt: new Date().toISOString(), videos: videos.slice(0, MAX) }));
-  console.log(`highlights: ${Math.min(videos.length, MAX)} videos written`);
+  await writeFile(OUT, JSON.stringify({ generatedAt: new Date().toISOString(), videos: out }));
+  console.log(`highlights: ${out.length} videos written`);
 }
