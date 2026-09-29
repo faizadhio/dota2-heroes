@@ -87,12 +87,14 @@ function* walk(node) {
   if (node.lockupViewModel && /VIDEO/.test(node.lockupViewModel.contentType || "")) {
     const l = node.lockupViewModel;
     const meta = l.metadata?.lockupMetadataViewModel || {};
-    // The view count and upload age sit a few levels down and move around between layouts; search the strings.
-    const strings = [...JSON.stringify(l).matchAll(/"(?:content|text|label)":"([^"]*)"/g)].map((m) => m[1]);
+    // Parts look like { text: { content: "4.7K" }, accessibilityLabel: "4.7 thousand views" } and "11 hours ago".
+    const parts = (meta.metadata?.contentMetadataViewModel?.metadataRows || []).flatMap((row) => row.metadataParts || []);
+    const label = (re) => parts.find((p) => re.test(p.accessibilityLabel || ""));
+    const badge = JSON.stringify(l.contentImage || {}).match(/"text":"(\d+(?::\d\d)+)"/);
     yield { id: l.contentId, title: meta.title?.content || "",
-      ago: strings.find((p) => /\d+\s+\w+\s+ago$/.test(p)) || "",
-      views: strings.find((p) => /^[\d.,]+\s*[KMB]?\s+views?$/i.test(p)) || "",
-      length: strings.find((p) => /^\d+(:\d\d)+$/.test(p)) || "" };
+      ago: label(/ago$/)?.accessibilityLabel || "",
+      views: label(/views?$/)?.text?.content || "",
+      length: badge ? badge[1] : "" };
     return;
   }
   for (const v of Object.values(node)) yield* walk(v);
@@ -104,12 +106,6 @@ async function fromPage({ id, label }) {
   const m = html.match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
   if (!m) throw new Error("no ytInitialData");
   const all = [...walk(JSON.parse(m[1]))];
-  if (process.env.HL_DEBUG) {
-    const find = (n, k) => { if (!n || typeof n !== "object") return null; if (n[k]) return n[k]; for (const v of Object.values(n)) { const r = find(v, k); if (r) return r; } return null; };
-    const d = JSON.parse(m[1]);
-    const sample = find(d, "videoRenderer") || find(d, "lockupViewModel");
-    console.log("DEBUG", JSON.stringify(sample).slice(0, 6000));
-  }
   if (!all.length) throw new Error("no videos found on the page");
   console.log(`${label}: page lists ${all.length} videos, e.g. "${all[0].title}" (${all[0].views}, ${all[0].ago}, ${all[0].length})`);
   // "3 weeks ago" is coarse, so nudge each video back by its position to keep the page's newest-first order.
