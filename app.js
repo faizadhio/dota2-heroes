@@ -220,6 +220,10 @@
     }
     return "just now";
   }
+  const duration = (sec) => {
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = String(sec % 60).padStart(2, "0");
+    return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+  };
   // Channels tack "| DOTA2" and similar onto every title; the page already says it's Dota.
   const tidyTitle = (t) => t.replace(/\s*[|·-]\s*dota ?2\s*$/i, "").trim();
 
@@ -229,6 +233,7 @@
         <img src="https://i.ytimg.com/vi/${esc(v.id)}/hqdefault.jpg" alt="" loading="lazy" decoding="async">
         <i class="hl-play" aria-hidden="true"></i>
         <em class="hl-ch">${esc(v.channel)}</em>
+        ${v.duration ? `<em class="hl-dur">${duration(v.duration)}</em>` : ""}
       </span>
       <span class="hl-meta">
         <b>${esc(tidyTitle(v.title))}</b>

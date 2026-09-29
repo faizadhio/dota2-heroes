@@ -3,7 +3,7 @@
 //   1. YouTube Data API, only when a YOUTUBE_API_KEY secret is set (most reliable);
 //   2. the channel's public RSS feed;
 //   3. the channel's public "Videos" page.
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const CHANNELS = [
   { id: "UC7VWLs_Ivccq22rM2_xo0Rg", label: "PGL" },
@@ -69,9 +69,9 @@ async function fromRss({ id, label }) {
 
 // ---- 3. Channel page ----
 const UNITS = { second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000 };
-const fromAgo = (text) => {
+const fromAgo = (text, order = 0) => {
   const m = String(text || "").match(/(\d+)\s+(second|minute|hour|day|week|month|year)/);
-  return new Date(Date.now() - (m ? +m[1] * UNITS[m[2]] * 1000 : 0)).toISOString();
+  return new Date(Date.now() - (m ? +m[1] * UNITS[m[2]] * 1000 : 0) - order * 1000).toISOString();
 };
 const clock = (t) => String(t || "").split(":").reduce((a, n) => a * 60 + (+n || 0), 0);
 const text = (t) => (t && (t.simpleText || (t.runs || []).map((r) => r.text).join(""))) || "";
@@ -87,11 +87,12 @@ function* walk(node) {
   if (node.lockupViewModel && /VIDEO/.test(node.lockupViewModel.contentType || "")) {
     const l = node.lockupViewModel;
     const meta = l.metadata?.lockupMetadataViewModel || {};
-    const parts = (meta.metadata?.contentMetadataViewModel?.metadataRows || [])
-      .flatMap((row) => (row.metadataParts || []).map((p) => p.text?.content || ""));
-    const badge = JSON.stringify(l.contentImage || {}).match(/"text":"(\d+(?::\d+)+)"/);
-    yield { id: l.contentId, title: meta.title?.content || "", ago: parts.find((p) => /ago/.test(p)) || "",
-      views: parts.find((p) => /view/.test(p)) || "", length: badge ? badge[1] : "" };
+    // The view count and upload age sit a few levels down and move around between layouts; search the strings.
+    const strings = [...JSON.stringify(l).matchAll(/"(?:content|text|label)":"([^"]*)"/g)].map((m) => m[1]);
+    yield { id: l.contentId, title: meta.title?.content || "",
+      ago: strings.find((p) => /\d+\s+\w+\s+ago$/.test(p)) || "",
+      views: strings.find((p) => /^[\d.,]+\s*[KMB]?\s+views?$/i.test(p)) || "",
+      length: strings.find((p) => /^\d+(:\d\d)+$/.test(p)) || "" };
     return;
   }
   for (const v of Object.values(node)) yield* walk(v);
@@ -104,9 +105,10 @@ async function fromPage({ id, label }) {
   if (!m) throw new Error("no ytInitialData");
   const all = [...walk(JSON.parse(m[1]))];
   if (!all.length) throw new Error("no videos found on the page");
-  console.log(`${label}: page lists ${all.length} videos, e.g. "${all[0].title}"`);
-  return all.filter((r) => r.id && HIGHLIGHT.test(r.title)).map((r) => ({
-    id: r.id, title: r.title, channel: label, published: fromAgo(r.ago), views: count(r.views), duration: clock(r.length)
+  console.log(`${label}: page lists ${all.length} videos, e.g. "${all[0].title}" (${all[0].views}, ${all[0].ago}, ${all[0].length})`);
+  // "3 weeks ago" is coarse, so nudge each video back by its position to keep the page's newest-first order.
+  return all.map((r, i) => ({ ...r, i })).filter((r) => r.id && HIGHLIGHT.test(r.title)).map((r) => ({
+    id: r.id, title: r.title, channel: label, published: fromAgo(r.ago, r.i), views: count(r.views), duration: clock(r.length)
   }));
 }
 
@@ -131,13 +133,9 @@ for (const ch of CHANNELS) {
 if (!videos.length) {
   console.warn("highlights: nothing fetched, keeping the previous file");
 } else {
-  // Page-scraped dates are approximate ("3 days ago"); keep the exact date from the previous run when we have it.
-  let previous = new Map();
-  try { previous = new Map(JSON.parse(await readFile(OUT, "utf8")).videos.map((v) => [v.id, v.published])); } catch { /* first run */ }
   const seen = new Set();
   const out = videos
     .filter((v) => !seen.has(v.id) && seen.add(v.id))
-    .map((v) => ({ ...v, published: previous.get(v.id) || v.published }))
     .sort((a, b) => Date.parse(b.published) - Date.parse(a.published))
     .slice(0, MAX);
   await mkdir(new URL("./", OUT), { recursive: true });

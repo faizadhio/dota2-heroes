@@ -537,6 +537,7 @@ body.has-cursor input { cursor: auto; }
 .hl-play { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(5, 5, 7, .55); border: 1.5px solid rgba(255, 255, 255, .7); z-index: 1; transition: transform .4s cubic-bezier(.34, 1.56, .64, 1), background .3s, border-color .3s; }
 .hl-play::before { content: ""; position: absolute; left: 21px; top: 16px; border-style: solid; border-width: 11px 0 11px 17px; border-color: transparent transparent transparent #fff; }
 .hl-ch { position: absolute; left: 10px; bottom: 9px; z-index: 1; font: 600 11px/1 var(--display); font-style: normal; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); padding: 5px 8px; border-radius: 6px; background: rgba(5, 5, 7, .7); border: 1px solid rgba(240, 192, 90, .35); }
+.hl-dur { position: absolute; right: 10px; bottom: 9px; z-index: 1; font: 600 12px/1 var(--display); font-style: normal; font-variant-numeric: tabular-nums; color: #fff; padding: 5px 7px; border-radius: 6px; background: rgba(5, 5, 7, .75); }
 .hl-meta { display: grid; gap: 6px; }
 .hl-meta b { font-weight: 600; font-size: 15px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; transition: color .3s; }
 .hl-meta small { color: var(--muted); font-size: 12.5px; }
