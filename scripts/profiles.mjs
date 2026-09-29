@@ -92,6 +92,9 @@ function trim(h) {
       innate: !!a.ability_is_innate,
       shard: fill(a.shard_loc, a.special_values || [], "shard"),
       scepter: fill(a.scepter_loc, a.special_values || [], "scepter"),
+      // The one ability dota2.com lists as the Shard / Scepter upgrade (other abilities can carry upgrade text too).
+      hasShard: !!a.ability_has_shard,
+      hasScepter: !!a.ability_has_scepter,
       fromShard: !!a.ability_is_granted_by_shard,
       fromScepter: !!a.ability_is_granted_by_scepter
     }));

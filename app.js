@@ -760,19 +760,23 @@
       </div>`;
   }
 
-  // One entry per ability, innate first, then an extra entry for each Aghanim's Scepter or Shard upgrade,
-  // the way the ability strip on dota2.com lists them.
+  // One entry per ability, innate first, then one entry each for Aghanim's Shard and Scepter, the way the
+  // ability strip on dota2.com lists them. An ability the Shard or Scepter grants outright only shows up
+  // as that upgrade entry, tagged as a new ability.
   function abilityEntries(p) {
+    const granted = (a, kind) => kind === "scepter" ? a.fromScepter : a.fromShard;
     const base = [...p.abilities.filter((a) => a.innate), ...p.abilities.filter((a) => !a.innate)];
-    const out = base.map((a) => ({ key: a.name, a, kind: "base" }));
-    for (const kind of ["scepter", "shard"]) {
-      for (const a of base) {
-        const granted = kind === "scepter" ? a.fromScepter : a.fromShard;
-        if (a[kind] && !granted) out.push({ key: `${a.name}:${kind}`, a, kind });
-      }
+    const out = base.filter((a) => !a.fromShard && !a.fromScepter).map((a) => ({ key: a.name, a, kind: "base" }));
+    for (const kind of ["shard", "scepter"]) {
+      const flag = kind === "scepter" ? "hasScepter" : "hasShard";
+      // Profiles written before the upgrade flags existed fall back to the first ability with upgrade text.
+      const a = base.find((x) => x[flag]) || base.find((x) => granted(x, kind)) || base.find((x) => x[kind]);
+      if (a) out.push({ key: `${a.name}:${kind}`, a, kind, granted: !!granted(a, kind) });
     }
     return out;
   }
+  // Each upgrade has one clip of its own per hero (<hero>_aghanims_shard / _scepter), showing what it adds.
+  const clipName = (h, e) => e.kind === "base" ? e.a.name : `${heroSlug(h)}_aghanims_${e.kind}`;
   const abilityVideo = (h, name, ext) => `${CDN}/apps/dota2/videos/dota_react/abilities/${heroSlug(h)}/${name}.${ext}`;
   const abButton = (e, cls, selected) => `<button type="button" class="${cls}${e.a.innate ? " innate" : ""}${e.kind !== "base" ? ` up ${e.kind}` : ""}" data-ab="${esc(e.key)}" aria-pressed="${selected}" title="${esc(e.a.title)}${e.kind !== "base" ? ` (Aghanim's ${e.kind === "scepter" ? "Scepter" : "Shard"})` : ""}">
       <img src="${esc(abilityImg(e.a.name))}" alt="${esc(e.a.title)}" loading="lazy"><span>${esc(e.a.title.slice(0, 2))}</span>${e.kind !== "base" ? `<i class="aghs-badge ${e.kind}" aria-hidden="true"></i>` : ""}
@@ -791,9 +795,11 @@
   function abilityDetail(e) {
     const { a, kind } = e;
     const vals = (arr) => arr.map((v) => fixed(v)).join(" / ");
-    const tags = kind === "scepter" ? ["Scepter ability upgrade"] : kind === "shard" ? ["Shard ability upgrade"]
-      : [a.innate && "Innate", a.ult && "Ultimate", a.fromScepter && "Granted by Aghanim's Scepter", a.fromShard && "Granted by Aghanim's Shard"].filter(Boolean);
-    const base = kind === "base";
+    const up = kind === "scepter" ? "Scepter" : "Shard";
+    const tags = kind === "base" ? [a.innate && "Innate", a.ult && "Ultimate"].filter(Boolean)
+      : e.granted ? [`New ability from Aghanim's ${up}`] : [`${up} ability upgrade`];
+    // A granted ability reads like a normal one: its own description, values and notes.
+    const base = kind === "base" || e.granted;
     return `
       <div class="ad-head">
         <img src="${esc(abilityImg(a.name))}" alt="" class="ad-img">
@@ -984,12 +990,12 @@
     // so switching abilities cross-fades instead of flashing black.
     let front = null, current = null, textTimer = 0;
     const unload = (v) => { v.pause(); v.removeAttribute("poster"); v.innerHTML = ""; v.load(); };
-    const showClip = (name) => {
+    const showClip = (name, icon) => {
       const v = layers.find((x) => x !== front);
       const old = front;
       front = v;
       media.classList.remove("novideo");
-      fallback.src = abilityImg(name);
+      fallback.src = abilityImg(icon);
       v.poster = abilityVideo(h, name, "jpg");
       v.innerHTML = `<source src="${esc(abilityVideo(h, name, "webm"))}" type="video/webm"><source src="${esc(abilityVideo(h, name, "mp4"))}" type="video/mp4">`;
       let shown = false;
@@ -1021,8 +1027,8 @@
       clearTimeout(textTimer);
       if (!detail.innerHTML || reduceMotion) swap();
       else { detail.classList.add("swap"); textTimer = setTimeout(swap, 180); }
-      // Upgrades reuse the ability's own clip, as dota2.com does.
-      if (current !== e.a.name) { current = e.a.name; showClip(e.a.name); }
+      const clip = clipName(h, e);
+      if (current !== clip) { current = clip; showClip(clip, e.a.name); }
       if (scroll) $(".hero-skills", view).scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     };
     $(".ab-row", view)?.addEventListener("click", (ev) => { const b = ev.target.closest(".ab"); if (b) pick(b.dataset.ab, true); });
