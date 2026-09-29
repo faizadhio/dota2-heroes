@@ -330,9 +330,14 @@ video.portrait {
 .skills-title { margin: 0 0 24px; text-align: center; font: 500 22px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; }
 .skills-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 .ad-media { position: relative; aspect-ratio: 16 / 9; background: #0c0d11 center / cover no-repeat; border: 1px solid var(--border); overflow: hidden; }
-.ad-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.ad-fallback { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); object-fit: cover; opacity: 0; transition: opacity .3s; border-radius: 6px; }
-.ad-media.novideo .ad-video { display: none; }
+.ad-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.03); transition: opacity .5s ease, transform .8s cubic-bezier(.2, .7, .2, 1); }
+.ad-video.on { opacity: 1; transform: none; z-index: 1; }
+.ab-detail > * { transition: opacity .22s ease, transform .35s cubic-bezier(.2, .7, .2, 1); }
+.ab-detail.swap > * { opacity: 0; transform: translateY(8px); transition-duration: .16s; }
+.ab-detail .ad-body { transition-delay: .04s; }
+.ab-detail.swap .ad-body { transition-delay: 0s; }
+.ad-fallback { position: absolute; z-index: 2; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); object-fit: cover; opacity: 0; transition: opacity .3s; border-radius: 6px; }
+.ad-media.novideo .ad-video { opacity: 0; }
 .ad-media.novideo .ad-fallback { opacity: .9; }
 .ad-media.novideo::after { content: "No clip for this ability"; position: absolute; left: 0; right: 0; top: 14px; text-align: center; color: var(--muted); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
 .ad-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: -26px; padding: 0 12px; position: relative; z-index: 1; }
