@@ -237,7 +237,7 @@ video.portrait {
 }
 .hero-info { position: relative; min-width: 0; }
 .hero-sub { display: flex; align-items: center; gap: 8px; color: #c5c8d2; margin: 0 0 8px; font-size: 13px; letter-spacing: .2em; text-transform: uppercase; }
-.hero-name { font: 900 clamp(40px, 7vw, 104px)/.95 var(--epic); margin: 0 0 14px; letter-spacing: -.04em; text-transform: uppercase; overflow-wrap: normal; hyphens: none; }
+.hero-name { font: 900 clamp(32px, 5vw, 76px)/1 var(--epic); margin: 0 0 14px; letter-spacing: -.03em; text-transform: uppercase; overflow-wrap: normal; word-break: keep-all; hyphens: none; }
 .hero-line { color: var(--muted); margin: 0 0 34px; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; }
 .hero-sub .attr-ico { width: 30px; height: 30px; }
 .hero-sub .attr { width: 14px; height: 14px; }
