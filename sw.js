@@ -1,7 +1,7 @@
 // Offline-capable cache for the static site.
 // fonts/ never change, so they are served from cache first. Pages, code and data go to the
 // network first (so a deploy shows up right away) and fall back to the cache when the network is slow or offline.
-const VERSION = "v6";
+const VERSION = "v7";
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const PRECACHE = [

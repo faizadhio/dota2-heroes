@@ -484,8 +484,8 @@ video.portrait {
 .fn-card::before { content: ""; position: absolute; inset: 0; z-index: -2; background: radial-gradient(ellipse 45% 90% at var(--fx) 100%, color-mix(in srgb, var(--ac) 30%, transparent), transparent 72%); opacity: .55; transition: opacity .5s; }
 .fn-card.prev { --fx: 18%; }
 .fn-card.next { --fx: 82%; }
-.fn-card::after { content: ""; position: absolute; inset: -1px 0 auto; height: 2px; z-index: 1; background: linear-gradient(90deg, transparent, var(--ac), transparent); transform: scaleX(0); transition: transform .6s cubic-bezier(.2, .7, .2, 1); }
-.fn-art { position: absolute; z-index: -1; bottom: 0; width: clamp(180px, 24vw, 360px); height: calc(100% + 130px); pointer-events: none; }
+.fn-card::after { content: ""; position: absolute; inset: -1px 0 auto; height: 2px; z-index: -1; background: linear-gradient(90deg, transparent, var(--ac), transparent); transform: scaleX(0); transition: transform .6s cubic-bezier(.2, .7, .2, 1); }
+.fn-art { position: absolute; z-index: 0; bottom: 0; width: clamp(180px, 24vw, 360px); height: calc(100% + 130px); pointer-events: none; }
 .fn-card.prev .fn-art { left: 0; }
 .fn-card.next .fn-art { right: 0; }
 .fn-art img { width: 100%; height: 100%; object-fit: contain; object-position: bottom; filter: brightness(.72) saturate(.85) drop-shadow(0 18px 30px rgba(0, 0, 0, .6)); transform-origin: 50% 100%; transition: transform .7s cubic-bezier(.2, .7, .2, 1), filter .5s; }
@@ -495,12 +495,12 @@ video.portrait {
 .fn-art.portrait img { object-fit: cover; mask: linear-gradient(90deg, #000 55%, transparent); }
 .fn-card.next .fn-art.portrait img { mask: linear-gradient(270deg, #000 55%, transparent); }
 .fn-art.missing { display: none; }
-.fn-text { display: grid; gap: 6px; min-width: 0; transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
+.fn-text { position: relative; z-index: 1; display: grid; gap: 6px; min-width: 0; transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
 .fn-text small { font: 600 12px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
 .fn-text b { font: 900 clamp(20px, 2.3vw, 34px)/1.05 var(--epic); text-transform: uppercase; letter-spacing: -.01em; overflow-wrap: normal; hyphens: none; text-shadow: 0 2px 16px rgba(0, 0, 0, .7); transition: color .4s; }
 .fn-type { display: flex; align-items: center; gap: 8px; font: 500 14px/1 var(--display); letter-spacing: .16em; text-transform: uppercase; color: #c9ccd6; }
 .fn-type .attr-ico, .fn-type .attr { width: 20px; height: 20px; }
-.fn-arrow { position: absolute; top: 50%; width: 14px; height: 14px; fill: var(--ac); opacity: 0; transition: opacity .4s, transform .5s cubic-bezier(.2, .7, .2, 1); }
+.fn-arrow { position: absolute; z-index: 1; top: 50%; width: 14px; height: 14px; fill: var(--ac); opacity: 0; transition: opacity .4s, transform .5s cubic-bezier(.2, .7, .2, 1); }
 .fn-card.prev .fn-arrow { left: 22px; transform: translate(12px, -50%); }
 .fn-card.next .fn-arrow { right: 22px; transform: translate(-12px, -50%); }
 .fn-all { display: grid; place-content: center; justify-items: center; gap: 16px; background: rgba(255, 255, 255, .025); border-inline: 1px solid var(--border); color: #d8dae1; transition: background .4s, color .4s; }
