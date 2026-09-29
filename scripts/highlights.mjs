@@ -76,24 +76,38 @@ const fromAgo = (text) => {
 const clock = (t) => String(t || "").split(":").reduce((a, n) => a * 60 + (+n || 0), 0);
 const text = (t) => (t && (t.simpleText || (t.runs || []).map((r) => r.text).join(""))) || "";
 
+// YouTube serves either the older videoRenderer or the newer lockupViewModel layout; read both.
 function* walk(node) {
   if (!node || typeof node !== "object") return;
-  if (node.videoRenderer) yield node.videoRenderer;
+  if (node.videoRenderer) {
+    const r = node.videoRenderer;
+    yield { id: r.videoId, title: text(r.title), ago: text(r.publishedTimeText), views: text(r.viewCountText), length: text(r.lengthText) };
+    return;
+  }
+  if (node.lockupViewModel && /VIDEO/.test(node.lockupViewModel.contentType || "")) {
+    const l = node.lockupViewModel;
+    const meta = l.metadata?.lockupMetadataViewModel || {};
+    const parts = (meta.metadata?.contentMetadataViewModel?.metadataRows || [])
+      .flatMap((row) => (row.metadataParts || []).map((p) => p.text?.content || ""));
+    const badge = JSON.stringify(l.contentImage || {}).match(/"text":"(\d+(?::\d+)+)"/);
+    yield { id: l.contentId, title: meta.title?.content || "", ago: parts.find((p) => /ago/.test(p)) || "",
+      views: parts.find((p) => /view/.test(p)) || "", length: badge ? badge[1] : "" };
+    return;
+  }
   for (const v of Object.values(node)) yield* walk(v);
 }
+const count = (s) => { const m = String(s).replace(/,/g, "").match(/([\d.]+)\s*([KMB])?/i); return m ? Math.round(+m[1] * ({ k: 1e3, m: 1e6, b: 1e9 }[(m[2] || "").toLowerCase()] || 1)) : 0; };
 
 async function fromPage({ id, label }) {
   const html = await get(`https://www.youtube.com/channel/${id}/videos?hl=en&gl=US`);
   const m = html.match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
   if (!m) throw new Error("no ytInitialData");
-  const videos = [];
-  for (const r of walk(JSON.parse(m[1]))) {
-    const title = text(r.title);
-    if (!r.videoId || !HIGHLIGHT.test(title)) continue;
-    videos.push({ id: r.videoId, title, channel: label, published: fromAgo(text(r.publishedTimeText)),
-      views: Number(text(r.viewCountText).replace(/\D/g, "")) || 0, duration: clock(text(r.lengthText)) });
-  }
-  return videos;
+  const all = [...walk(JSON.parse(m[1]))];
+  if (!all.length) throw new Error("no videos found on the page");
+  console.log(`${label}: page lists ${all.length} videos, e.g. "${all[0].title}"`);
+  return all.filter((r) => r.id && HIGHLIGHT.test(r.title)).map((r) => ({
+    id: r.id, title: r.title, channel: label, published: fromAgo(r.ago), views: count(r.views), duration: clock(r.length)
+  }));
 }
 
 const sources = [...(KEY ? [["api", fromApi]] : []), ["rss", fromRss], ["page", fromPage]];
