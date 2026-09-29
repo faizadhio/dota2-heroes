@@ -1,0 +1,26 @@
+name: Build hero profiles on this branch (temporary)
+on:
+  push:
+    branches: [claude/project-thread-ujzb8t]
+    paths: [scripts/profiles.mjs]
+permissions:
+  contents: write
+jobs:
+  profiles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/profiles.mjs
+      - run: |
+          jq -c '{tagline, attack, primary, roles, talents, ab: [.abilities[] | {title, desc, ult, innate, cooldowns, mana, shard, scepter}]}' data/profiles/102.json
+          jq -c '.talents' data/profiles/1.json data/profiles/74.json
+          jq -c '.abilities[] | {title, desc}' data/profiles/74.json | cut -c1-400
+          grep -l '?' data/profiles/*.json | wc -l
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/profiles
+          git commit -m "Add hero profiles from dota2.com" && git push
