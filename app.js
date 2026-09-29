@@ -22,13 +22,11 @@
     "great_famango", "greater_famango", "royal_jelly", "branches"
   ]);
 
-  const hasGsap = typeof window.gsap !== "undefined";
   const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const liteMedia = !finePointer || window.matchMedia("(max-width: 899px)").matches || !!(navigator.connection && navigator.connection.saveData);
-  if (hasGsap) gsap.registerPlugin(ScrollTrigger, SplitText, Flip);
 
-  const state = { heroes: [], items: {}, attr: "", role: "", bracket: "all", sort: "tier", query: "", meta: null };
+  const state = { heroes: [], items: {}, attr: "", role: "", bracket: "all", sort: "tier", query: "", meta: null, order: [] };
   const cards = new Map();
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -200,11 +198,36 @@
     if (p && p.catch) p.catch(() => {});
   }
 
-  function countTo(el, to, fmt = (v) => Math.round(v).toLocaleString("en-US"), opts = {}) {
+  // ---------- motion ----------
+  // Everything moves once, with CSS transitions: an element marked data-rv fades up the first time it
+  // scrolls into view, and nothing runs per frame after that. The browser does its own scrolling.
+
+  const revealIO = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      e.target.classList.add("in");
+      revealIO.unobserve(e.target);
+      if (e.target._onReveal) e.target._onReveal();
+    }
+  }, { rootMargin: "0px 0px -6% 0px" });
+
+  const reveal = (root = document) => {
+    const els = root.matches && root.matches("[data-rv]") ? [root] : [];
+    els.push(...$$("[data-rv]:not(.in)", root));
+    els.forEach((el) => revealIO.observe(el));
+  };
+  const onReveal = (el, fn) => { if (!el) return; if (el.classList.contains("in")) fn(); else el._onReveal = fn; };
+
+  function countUp(el, to, fmt = (v) => Math.round(v).toLocaleString("en-US"), ms = 1400) {
     if (!el) return;
-    if (!hasGsap) { el.textContent = fmt(to); return; }
-    const o = { v: 0 };
-    return gsap.to(o, { v: to, duration: 2, ease: "power3.out", ...opts, onUpdate: () => { el.textContent = fmt(o.v); } });
+    if (reduceMotion) { el.textContent = fmt(to); return; }
+    const t0 = performance.now();
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / ms);
+      el.textContent = fmt(to * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   // ---------- highlights ----------
@@ -241,52 +264,45 @@
       </span>
     </button>`;
 
-  function renderHomeHighlights(videos) {
-    if (!videos.length) return;
-    $("#hl-row").innerHTML = videos.slice(0, 8).map(highlightCard).join("");
-    $("#highlights").hidden = false;
-  }
-
   let hlFilter = "";
   async function renderHighlightsPage() {
     const view = $("#highlights-view");
     view.innerHTML = `
       <section class="wrap hl-page">
-        <a class="back" href="#/"><span>←</span> All heroes</a>
-        <p class="eyebrow"><span class="line"></span>Fresh from the pro scene</p>
-        <h1 class="section-title hl-title">Tournament highlights</h1>
-        <div class="hl-chips" id="hl-chips" role="group" aria-label="Channel"></div>
+        <a class="back" href="#/" data-rv><span>←</span> All heroes</a>
+        <p class="eyebrow" data-rv style="--d:1"><span class="line"></span>Fresh from the pro scene</p>
+        <h1 class="section-title hl-title" data-rv style="--d:2">Tournament highlights</h1>
+        <div class="hl-chips" id="hl-chips" role="group" aria-label="Channel" data-rv style="--d:3"></div>
         <div class="hl-grid" id="hl-grid"><p class="state">Loading highlights…</p></div>
       </section>`;
+    reveal(view);
     const videos = await loadHighlights();
     if (current !== "highlights") return;
     const grid = $("#hl-grid", view);
-    if (!videos.length) { grid.innerHTML = `<p class="state">No highlights yet. They are collected once a day, check back soon.</p>`; return; }
+    if (!videos.length) { grid.innerHTML = `<p class="state">No highlights yet. They are collected every few hours, check back soon.</p>`; return; }
     const channels = [...new Set(videos.map((v) => v.channel))];
     if (!channels.includes(hlFilter)) hlFilter = "";
     const chips = $("#hl-chips", view);
-    const draw = (animate) => {
+    const draw = () => {
       chips.innerHTML = ["", ...channels].map((c) => `<button type="button" class="chip${c === hlFilter ? " on" : ""}" data-ch="${esc(c)}">${esc(c || "All")}</button>`).join("");
       grid.innerHTML = videos.filter((v) => !hlFilter || v.channel === hlFilter).map(highlightCard).join("");
-      if (animate && hasGsap) gsap.from($$(".hl-card", grid), { y: 50, opacity: 0, duration: 0.8, ease: "expo.out", stagger: 0.04, clearProps: "transform,opacity" });
+      $$(".hl-card", grid).forEach((c, i) => { c.setAttribute("data-rv", ""); c.style.setProperty("--d", i % 4); });
+      reveal(grid);
     };
     chips.addEventListener("click", (e) => {
       const b = e.target.closest(".chip");
       if (!b || b.dataset.ch === hlFilter) return;
       hlFilter = b.dataset.ch;
-      draw(true);
-      ScrollTrigger.refresh();
+      draw();
     });
-    draw(true);
-    ScrollTrigger.refresh();
+    draw();
   }
 
-  function animateHighlightsIn() {
-    if (!hasGsap) return;
-    gsap.timeline({ defaults: { ease: "expo.out" } })
-      .from(".hl-page .back", { x: -30, opacity: 0, duration: 0.8 }, 0.1)
-      .from(".hl-page .eyebrow", { y: 20, opacity: 0, duration: 0.8 }, 0.15)
-      .from(".hl-title", { yPercent: 60, opacity: 0, duration: 1.1 }, 0.2);
+  function renderHomeHighlights(videos) {
+    if (!videos.length) return;
+    $("#hl-row").innerHTML = videos.slice(0, 8).map(highlightCard).join("");
+    $$("#hl-row .hl-card").forEach((c, i) => { c.setAttribute("data-rv", ""); c.style.setProperty("--d", i % 4); });
+    $("#highlights").hidden = false;
   }
 
   // One shared player: the YouTube iframe only exists while the dialog is open.
@@ -299,7 +315,6 @@
       box.hidden = true;
       frame.innerHTML = "";
       document.body.classList.remove("player-open");
-      lenis && lenis.start();
       paused.forEach((v) => v.play().catch(() => {}));
       paused = [];
       lastFocus && lastFocus.focus();
@@ -314,9 +329,7 @@
       paused.forEach((v) => v.pause());
       box.hidden = false;
       document.body.classList.add("player-open");
-      lenis && lenis.stop();
       $(".player-close", box).focus();
-      if (hasGsap) gsap.fromTo(".player-box", { y: 40, scale: 0.94, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.6, ease: "expo.out", clearProps: "transform,opacity" });
     };
     document.addEventListener("click", (e) => {
       const card = e.target.closest(".hl-card");
@@ -327,11 +340,10 @@
     addEventListener("hashchange", close);
   }
 
-  // ---------- intro ----------
+  // ---------- home ----------
 
   function renderIntro() {
-    const meta = state.meta;
-    const top = meta.ranked.find((r) => r.pick > 0);
+    const top = state.meta.ranked.find((r) => r.pick > 0);
     if (!top) return;
     setHeroVideo($("#intro-video"), top.h);
     onScreen.observe($("#intro-video"));
@@ -343,27 +355,18 @@
       <span><em class="${wrClass(top.wr)}">${pct(top.wr)}</em> win rate · tier <b class="tier t-${top.tier}">${top.tier}</b></span>`;
   }
 
-  function renderMarquee() {
-    const heroes = [...state.heroes].sort(() => Math.random() - 0.5);
-    const half = Math.ceil(heroes.length / 2);
-    const row = (list) => {
-      const html = list.map((h) => `<a class="mq attr-${esc(h.primary_attr)}" href="#/hero/${h.id}" tabindex="-1"><img src="${esc(heroImg(h))}" alt="" loading="lazy"><span>${esc(h.localized_name)}</span></a>`).join("");
-      return `<div class="mq-inner">${html}</div><div class="mq-inner">${html}</div>`;
-    };
-    $("#marquee-a").innerHTML = row(heroes.slice(0, half));
-    $("#marquee-b").innerHTML = row(heroes.slice(half));
-  }
-
+  // Top 5 cards show a still render; the animated one only plays while the pointer is over a card,
+  // the way the hero grid on dota2.com works.
   function renderTop() {
     const top = state.meta.ranked.filter((r) => r.pick > 0).slice(0, 5);
-    $$(".top-video").forEach((v) => onScreen.unobserve(v));
     $("#top-bracket").textContent = `Top 5 · ${bracketLabel()}`;
-    $("#top-track").innerHTML = top.map(({ h, wr, pr, tier }, i) => `
-      <a class="top-card attr-${esc(h.primary_attr)}" href="#/hero/${h.id}">
+    $("#top-track").innerHTML = top.map(({ h, wr, pr, tier }, i) => {
+      const [still, alt] = heroRenders(h);
+      return `
+      <a class="top-card attr-${esc(h.primary_attr)}" href="#/hero/${h.id}" data-hero="${h.id}" data-rv style="--d:${i}">
         <span class="top-rank">0${i + 1}</span>
         <div class="top-art">
-          <div class="top-glow"></div>
-          <video class="top-video" muted loop playsinline preload="none" data-hero="${h.id}" aria-hidden="true"></video>
+          <img class="top-still" src="${esc(still)}" alt="" loading="lazy" data-alt="${esc(alt)}" data-portrait="${esc(heroImg(h))}">
         </div>
         <div class="top-info">
           <p class="top-attr"><i class="attr ${esc(h.primary_attr)}"></i>${esc(ATTR_NAMES[h.primary_attr] || "")}</p>
@@ -373,20 +376,40 @@
             <span><b>${pct(pr)}</b><small>Pick rate</small></span>
             <span><b class="tier t-${tier}">${tier}</b><small>Tier</small></span>
           </div>
-          <span class="top-cta">View build <i>→</i></span>
         </div>
-      </a>`).join("");
+      </a>`;
+    }).join("");
+    // Missing render: try the older path, then fall back to the portrait.
+    $$(".top-still").forEach((im) => im.addEventListener("error", () => {
+      if (im.dataset.alt) { im.src = im.dataset.alt; im.dataset.alt = ""; }
+      else if (im.dataset.portrait) { im.src = im.dataset.portrait; im.dataset.portrait = ""; im.classList.add("portrait"); }
+    }));
+    reveal($("#top-track"));
+  }
 
-    // Load each card's hero video when it comes near the screen; it only plays while actually on screen.
-    const byId = new Map(state.heroes.map((h) => [h.id, h]));
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        io.unobserve(e.target);
-        setHeroVideo(e.target, byId.get(Number(e.target.dataset.hero)));
-      }
-    }, { rootMargin: "200px" });
-    $$(".top-video").forEach((v) => { io.observe(v); onScreen.observe(v); });
+  function initTopHover() {
+    if (liteMedia) return;
+    const byId = () => new Map(state.heroes.map((h) => [h.id, h]));
+    $("#top-track").addEventListener("pointerover", (e) => {
+      const card = e.target.closest(".top-card");
+      if (!card || card._video) return;
+      const h = byId().get(Number(card.dataset.hero));
+      const v = document.createElement("video");
+      v.className = "top-video";
+      v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true;
+      v.setAttribute("aria-hidden", "true");
+      v.innerHTML = `<source src="${esc(heroVideo(h, "webm"))}" type="video/webm"><source src="${esc(heroVideo(h, "mov"))}" type='video/mp4; codecs="hvc1"'>`;
+      v.addEventListener("playing", () => card.classList.add("playing"), { once: true });
+      $(".top-art", card).append(v);
+      card._video = v;
+      const leave = (ev) => {
+        if (card.contains(ev.relatedTarget)) return;
+        card.removeEventListener("pointerout", leave);
+        card.classList.remove("playing");
+        setTimeout(() => { v.remove(); if (card._video === v) card._video = null; }, 300);
+      };
+      card.addEventListener("pointerout", leave);
+    });
   }
 
   function renderNumbers(animate) {
@@ -399,7 +422,7 @@
       [$("#n-best"), best, (v) => pct(v)]
     ];
     for (const [el, to, fmt] of vals) {
-      if (animate) countTo(el, to, fmt, { scrollTrigger: { trigger: el, start: "top 90%" } });
+      if (animate) onReveal(el.closest(".num"), () => countUp(el, to, fmt));
       else el.textContent = (fmt || ((v) => Math.round(v).toLocaleString("en-US")))(to);
     }
   }
@@ -416,7 +439,7 @@
       a.dataset.id = h.id;
       a.innerHTML = `
         <div class="card-img">
-          <img src="${esc(heroImg(h))}" alt="" loading="lazy">
+          <img src="${esc(heroImg(h))}" alt="" loading="lazy" decoding="async">
           <b class="tier"></b>
         </div>
         <div class="card-body">
@@ -425,9 +448,7 @@
             <span class="c-wr" title="Win rate"></span>
             <span class="c-pr" title="Pick rate"></span>
           </div>
-          <span class="wr-line"><i></i></span>
-        </div>
-        <span class="glare" aria-hidden="true"></span>`;
+        </div>`;
       grid.appendChild(a);
       cards.set(h.id, a);
     }
@@ -445,7 +466,6 @@
       wr.className = `c-wr ${wrClass(r.wr)}`;
       wr.innerHTML = `${pct(r.wr)} <small>WR</small>`;
       $(".c-pr", el).innerHTML = `${pct(r.pr)} <small>PR</small>`;
-      $(".wr-line i", el).style.setProperty("--w", Math.max(0, Math.min(1, (r.wr - 0.4) / 0.2)));
     }
   }
 
@@ -463,40 +483,26 @@
       && (!state.role || (h.roles || []).includes(state.role))
       && (!q || h.localized_name.toLowerCase().includes(q));
 
-    const els = [...cards.values()];
-    const flipState = animate && hasGsap ? Flip.getState(els) : null;
     const grid = $("#grid");
-    let shown = 0;
+    const frag = document.createDocumentFragment();
+    const order = [];
     for (const r of rows) {
       const el = cards.get(r.h.id);
       const on = show(r.h);
-      el.style.display = on ? "" : "none";
-      if (on) shown++;
-      grid.appendChild(el);
+      el.hidden = !on;
+      if (on) order.push(r.h.id);
+      frag.appendChild(el);
     }
-    $("#result-count").textContent = `${shown} ${shown === 1 ? "hero" : "heroes"}`;
-    $("#grid-empty").hidden = shown > 0;
-
-    if (flipState) {
-      Flip.from(flipState, {
-        duration: 0.7,
-        ease: "power3.inOut",
-        absolute: true,
-        stagger: 0.008,
-        onEnter: (e) => gsap.fromTo(e, { opacity: 0, scale: 0.6, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: "back.out(1.6)", stagger: 0.015 }),
-        onLeave: (e) => gsap.to(e, { opacity: 0, scale: 0.6, duration: 0.4, ease: "power2.in" }),
-        onComplete: () => ScrollTrigger.refresh()
-      });
+    grid.appendChild(frag);
+    state.order = order;
+    // A quick fade tells the eye the list changed, without moving 100+ cards around.
+    if (animate && !reduceMotion) {
+      grid.classList.remove("refresh");
+      void grid.offsetWidth;
+      grid.classList.add("refresh");
     }
-  }
-
-  function moveSegThumb(animate = true) {
-    const on = $("#attr-filter button.on");
-    const thumb = $(".seg-thumb");
-    if (!on || !thumb) return;
-    const props = { width: on.offsetWidth, x: on.offsetLeft - 3 };
-    if (hasGsap && animate) gsap.to(thumb, { ...props, duration: 0.5, ease: "back.out(1.7)" });
-    else if (hasGsap) gsap.set(thumb, props);
+    $("#result-count").textContent = `${order.length} ${order.length === 1 ? "hero" : "heroes"}`;
+    $("#grid-empty").hidden = order.length > 0;
   }
 
   function initFilters() {
@@ -521,18 +527,14 @@
       renderTop();
       renderIntro();
       renderNumbers(false);
-      ScrollTrigger.refresh();
     });
     $("#attr-filter").addEventListener("click", (e) => {
       const btn = e.target.closest("button");
       if (!btn) return;
       state.attr = btn.dataset.attr;
       for (const b of $$("#attr-filter button")) b.classList.toggle("on", b === btn);
-      moveSegThumb();
       applyFilters();
     });
-    window.addEventListener("resize", () => moveSegThumb(false));
-    moveSegThumb(false);
     initSelects();
   }
 
@@ -552,7 +554,7 @@
         <button type="button" class="dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="${id}" aria-label="${esc(select.getAttribute("aria-label"))}">
           <span class="dd-label"></span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
         </button>
-        <ul class="dd-menu" id="${id}" role="listbox" tabindex="-1" data-lenis-prevent></ul>`);
+        <ul class="dd-menu" id="${id}" role="listbox" tabindex="-1"></ul>`);
       const btn = $(".dd-btn", wrap), label = $(".dd-label", wrap), menu = $(".dd-menu", wrap);
       let active = 0;
       const opts = () => [...select.options];
@@ -717,30 +719,32 @@
       </div>`;
   }
 
-  let heroCtx = null;
+  function heroNeighbours(id) {
+    const order = state.order.includes(id) ? state.order : state.meta.ranked.map((r) => r.h.id);
+    const i = order.indexOf(id);
+    const byId = new Map(state.heroes.map((h) => [h.id, h]));
+    return { prev: byId.get(order[(i - 1 + order.length) % order.length]), next: byId.get(order[(i + 1) % order.length]) };
+  }
 
   function renderHero(id) {
     const h = state.heroes.find((x) => x.id === id);
     const view = $("#hero-view");
     $$("video", view).forEach((v) => onScreen.unobserve(v));
-    if (!h) { view.innerHTML = `<div class="wrap"><a class="back" href="#/">‹ All heroes</a><p class="state">Hero not found.</p></div>`; return null; }
+    if (!h) { view.innerHTML = `<div class="wrap hero-missing"><a class="back" href="#/"><span>←</span> All heroes</a><p class="state">Hero not found.</p></div>`; return null; }
     document.title = `${h.localized_name} · Dota 2 Meta`;
     const meta = state.meta.get(h.id);
+    const { prev, next } = heroNeighbours(h.id);
 
     view.innerHTML = `
       <section class="hero-stage attr-${esc(h.primary_attr)}">
-        <div class="hero-bgname" aria-hidden="true"><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span><span>${esc(h.localized_name)} · ${esc(h.localized_name)} · ${esc(h.localized_name)} · </span></div>
+        <div class="hero-art"><video class="hero-video" muted loop playsinline preload="auto" aria-hidden="true"></video></div>
         <div class="wrap hero-grid">
-          <a class="back" href="#/"><span>←</span> All heroes</a>
-          <div class="hero-art">
-            <div class="hero-halo"></div>
-            <video class="hero-video" muted loop playsinline preload="auto" aria-hidden="true"></video>
-          </div>
           <div class="hero-info">
-            <p class="hero-sub"><i class="attr ${esc(h.primary_attr)}"></i>${esc(ATTR_NAMES[h.primary_attr] || h.primary_attr)} · ${esc(h.attack_type)}</p>
-            <h1 class="hero-name">${esc(h.localized_name)}</h1>
-            <div class="roles">${(h.roles || []).map((r) => `<span>${esc(r)}</span>`).join("")}</div>
-            <div class="hero-stats">
+            <a class="back" href="#/" data-rv><span>←</span> All heroes</a>
+            <p class="hero-sub" data-rv style="--d:1"><i class="attr ${esc(h.primary_attr)}"></i>${esc(ATTR_NAMES[h.primary_attr] || h.primary_attr)}</p>
+            <h1 class="hero-name" data-rv style="--d:2">${esc(h.localized_name)}</h1>
+            <p class="hero-line" data-rv style="--d:3">${esc(h.attack_type)} · ${(h.roles || []).map(esc).join(" · ")}</p>
+            <div class="hero-stats" data-rv style="--d:4">
               ${ring(meta.wr)}
               <div class="kpis">
                 <div><b class="tier t-${meta.tier}">${meta.tier}</b><small>Tier · ${esc(bracketLabel())}</small></div>
@@ -750,21 +754,25 @@
               </div>
             </div>
           </div>
+          <nav class="hero-nav" aria-label="Other heroes" data-rv style="--d:5">
+            <a href="#/hero/${prev.id}" class="hn prev"><span>‹</span><small>Previous</small><b>${esc(prev.localized_name)}</b></a>
+            <a href="#/hero/${next.id}" class="hn next"><small>Next</small><b>${esc(next.localized_name)}</b><span>›</span></a>
+          </nav>
         </div>
       </section>
 
       <div class="wrap panels">
-        <section class="panel build">
+        <section class="panel build" data-rv>
           <h2>Item build</h2>
           <p class="hint">Items most often bought by ${esc(h.localized_name)} players in recent matches. Bars show relative popularity.</p>
           <div id="build"><div class="skeleton skel-core"></div><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(6)}</div></div>
         </section>
         <aside class="side">
-          <section class="panel">
+          <section class="panel" data-rv style="--d:1">
             <h2>Win rate by rank</h2>
             ${renderBracketBars(h)}
           </section>
-          <section class="panel">
+          <section class="panel" data-rv style="--d:2">
             <h2>Matchup</h2>
             <p class="hint">From pro matches, at least 10 games.</p>
             <div id="matchups"><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(5)}</div></div>
@@ -774,64 +782,18 @@
 
     setHeroVideo($(".hero-video", view), h);
     onScreen.observe($(".hero-video", view));
-    return h;
-  }
-
-  function animateHeroIn(view) {
-    if (!hasGsap) return;
-    heroCtx && heroCtx.revert();
-    heroCtx = gsap.context(() => {
-      const name = new SplitText(".hero-name", { type: "chars", charsClass: "ch" });
-      const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-      tl.from(".hero-art", { xPercent: -30, opacity: 0, scale: 0.85, rotate: -4, duration: 1.4 })
-        .from(".hero-halo", { scale: 0, opacity: 0, duration: 1.6 }, 0)
-        .from(".hero-sub", { y: 30, opacity: 0, duration: 0.8 }, 0.2)
-        .from(name.chars, { yPercent: 120, rotate: 12, opacity: 0, duration: 1.1, stagger: 0.04 }, 0.25)
-        .from(".roles span", { y: 20, opacity: 0, scale: 0.7, duration: 0.7, ease: "back.out(2)", stagger: 0.06 }, 0.6)
-        .from(".ring, .kpis > div", { y: 40, opacity: 0, duration: 0.9, stagger: 0.08 }, 0.7)
-        .from(".back", { x: -30, opacity: 0, duration: 0.8 }, 0.3);
-
+    const fmtOf = (el) => el.dataset.fmt === "rank" ? (v) => `#${Math.max(1, Math.round(v))}`
+      : el.dataset.fmt === "pct" ? (v) => pct(v) : (v) => Math.round(v).toLocaleString("en-US");
+    onReveal($(".hero-stats", view), () => {
       const fg = $(".ring-fg", view);
-      tl.to(fg, { strokeDashoffset: Number(fg.dataset.off), duration: 2, ease: "power3.out" }, 0.9);
-      for (const el of $$("[data-to]", view)) {
-        const to = Number(el.dataset.to);
-        const fmt = el.dataset.fmt === "rank" ? (v) => `#${Math.max(1, Math.round(v))}`
-          : el.dataset.fmt === "pct" ? (v) => pct(v) : (v) => Math.round(v).toLocaleString("en-US");
-        tl.add(countTo(el, to, fmt, { duration: 2 }), 0.9);
-      }
-
-      gsap.to(".hero-bgname span", { xPercent: -100, repeat: -1, duration: 40, ease: "none" });
-      gsap.to(".hero-art", { yPercent: 18, ease: "none", scrollTrigger: { trigger: ".hero-stage", start: "top top", end: "bottom top", scrub: true } });
-
-      gsap.from(".panel", { y: 80, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.12, scrollTrigger: { trigger: ".panels", start: "top 85%" } });
-      gsap.from(".br-bar i", { scaleY: 0, duration: 1.2, ease: "elastic.out(1, 0.6)", stagger: 0.06, scrollTrigger: { trigger: ".brackets", start: "top 85%" } });
-    }, view);
-  }
-
-  function animateBuildIn(root) {
-    if (!hasGsap || !heroCtx) return;
-    heroCtx.add(() => {
-      const tl = gsap.timeline({ scrollTrigger: { trigger: root, start: "top 80%" } });
-      const path = $(".core-path path", root);
-      if (path) tl.from(path, { attr: { d: "M0 5 H0" }, duration: 1.4, ease: "power2.inOut" }, 0);
-      tl.from($$(".core figure", root), { y: 60, opacity: 0, rotate: -8, scale: 0.6, duration: 0.9, ease: "back.out(1.8)", stagger: 0.12 }, 0.1);
-      const gold = $("[data-gold]", root);
-      if (gold) tl.add(countTo(gold, Number(gold.dataset.gold), (v) => Math.round(v).toLocaleString("en-US"), { duration: 1.6 }), 0.3);
-      $$(".phase", root).forEach((phase) => {
-        const t = gsap.timeline({ scrollTrigger: { trigger: phase, start: "top 88%" } });
-        t.from($("h4", phase), { x: -30, opacity: 0, duration: 0.6, ease: "power3.out" })
-          .fromTo($$(".item", phase), { x: -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.06, clearProps: "transform,opacity" }, 0.1)
-          .from($$(".bar i", phase), { scaleX: 0, duration: 1, ease: "power3.out", stagger: 0.06 }, 0.3);
-      });
+      fg.style.strokeDashoffset = fg.dataset.off;
+      $$("[data-to]", view).forEach((el) => countUp(el, Number(el.dataset.to), fmtOf(el)));
     });
-    ScrollTrigger.refresh();
-  }
-
-  function animateMatchupsIn(root) {
-    if (!hasGsap || !heroCtx) return;
-    heroCtx.add(() => {
-      gsap.fromTo($$(".mu", root), { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.05, clearProps: "transform,opacity", scrollTrigger: { trigger: root, start: "top 90%" } });
-    });
+    // The render slides in once it has a frame to show.
+    const art = $(".hero-art", view);
+    requestAnimationFrame(() => requestAnimationFrame(() => art.classList.add("in")));
+    reveal(view);
+    return h;
   }
 
   async function loadHeroData(id) {
@@ -843,74 +805,58 @@
     if (location.hash !== `#/hero/${id}`) return; // user navigated away while loading
     const build = $("#build");
     build.innerHTML = pop.status === "fulfilled" ? renderBuild(pop.value) : errorBox(pop.reason);
-    animateBuildIn(build);
+    $$(".core, .phase", build).forEach((el, i) => { el.setAttribute("data-rv", ""); el.style.setProperty("--d", i % 3); });
+    const gold = $("[data-gold]", build);
+    if (gold) onReveal($(".core", build), () => countUp(gold, Number(gold.dataset.gold)));
+    reveal(build);
     const mus = $("#matchups");
     mus.innerHTML = mu.status === "fulfilled" ? renderMatchups(mu.value) : errorBox(mu.reason);
-    animateMatchupsIn(mus);
+    $$(".mus > div", mus).forEach((el, i) => { el.setAttribute("data-rv", ""); el.style.setProperty("--d", i); });
+    reveal(mus);
   }
 
-  // ---------- routing with a page wipe ----------
+  // ---------- routing ----------
 
   let current = null;
   let listScroll = 0;
 
-  function wipe(swap) {
-    if (!hasGsap) { swap(); return; }
-    const bars = $$(".wipe i");
-    gsap.timeline()
-      .set(".wipe", { display: "grid" })
-      .fromTo(bars, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: 0.55, ease: "power4.in", stagger: 0.06 })
-      .add(() => swap())
-      .to(bars, { scaleY: 0, transformOrigin: "50% 0%", duration: 0.7, ease: "power4.out", stagger: 0.06 }, "+=0.1")
-      .set(".wipe", { display: "none" });
+  // Pages cross-fade: the old one fades out, the new one is swapped in at the top and fades in.
+  function fade(swap) {
+    const main = $("main");
+    if (reduceMotion) { swap(); return; }
+    main.classList.add("leaving");
+    setTimeout(() => {
+      swap();
+      main.classList.remove("leaving");
+    }, 220);
   }
 
-  function scrollToY(y) {
-    if (lenis) lenis.scrollTo(y, { immediate: true });
-    else window.scrollTo(0, y);
+  const views = ["#list-view", "#hero-view", "#highlights-view"];
+  function showOnly(sel) {
+    for (const v of views) {
+      const el = $(v);
+      el.hidden = v !== sel;
+      if (v !== sel && v !== "#list-view") el.innerHTML = "";
+    }
   }
 
   function showList() {
     document.title = "Dota 2 Meta · Hero & Item Build";
-    heroCtx && heroCtx.revert();
-    heroCtx = null;
-    $("#hero-view").hidden = true;
-    $("#hero-view").innerHTML = "";
-    $("#highlights-view").hidden = true;
-    $("#highlights-view").innerHTML = "";
-    $("#list-view").hidden = false;
-    ScrollTrigger.refresh();
-    scrollToY(listScroll);
-    moveSegThumb(false);
+    showOnly("#list-view");
+    window.scrollTo(0, listScroll);
   }
 
   function showHero(id) {
-    if (current === "list") listScroll = window.scrollY;
-    $("#intro-video").pause();
     const h = renderHero(id);
-    $("#list-view").hidden = true;
-    $("#highlights-view").hidden = true;
-    $("#highlights-view").innerHTML = "";
-    $("#hero-view").hidden = false;
-    scrollToY(0);
-    ScrollTrigger.refresh();
-    if (!h) return;
-    animateHeroIn($("#hero-view"));
-    loadHeroData(id);
+    showOnly("#hero-view");
+    window.scrollTo(0, 0);
+    if (h) loadHeroData(id);
   }
 
   function showHighlights() {
-    if (current === "list") listScroll = window.scrollY;
-    heroCtx && heroCtx.revert();
-    heroCtx = null;
-    $("#list-view").hidden = true;
-    $("#hero-view").hidden = true;
-    $("#hero-view").innerHTML = "";
-    $("#highlights-view").hidden = false;
+    showOnly("#highlights-view");
+    window.scrollTo(0, 0);
     renderHighlightsPage();
-    scrollToY(0);
-    ScrollTrigger.refresh();
-    animateHighlightsIn();
   }
 
   function route(first = false) {
@@ -918,272 +864,50 @@
     const hl = /^#\/highlights/.test(location.hash);
     const next = m ? `hero:${m[1]}` : hl ? "highlights" : "list";
     if (next === current) return;
-    const go = () => { m ? showHero(Number(m[1])) : hl ? showHighlights() : showList(); current = next; };
-    if (first) go(); else wipe(go);
+    if (current === "list") listScroll = window.scrollY;
+    const go = () => { current = next; m ? showHero(Number(m[1])) : hl ? showHighlights() : showList(); };
+    if (first) go(); else fade(go);
   }
 
   const errorBox = (err) => `<p class="state error">Failed to load data (${esc(err && err.message)}). OpenDota allows 60 requests per minute, please try again shortly.</p>`;
 
-  // ---------- list page motion ----------
-
-  function animateListIn() {
-    if (!hasGsap) return;
-    const title = new SplitText(".intro-title .split", { type: "chars", charsClass: "ch" });
-    const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-    tl.from(".intro-media", { scale: 1.3, opacity: 0, duration: 2 }, 0)
-      .from(".intro-outline", { yPercent: 40, opacity: 0, duration: 2 }, 0)
-      .from(".intro .eyebrow", { y: 20, opacity: 0, duration: 1 }, 0.2)
-      .from(title.chars, { yPercent: 130, rotateX: -90, opacity: 0, duration: 1.3, stagger: 0.035, transformOrigin: "50% 100%",
-        // Put the title back together once it lands, so the gold shine paints one line instead of every letter.
-        onComplete: () => title.revert() }, 0.25)
-      .from(".intro-lead", { y: 30, opacity: 0, duration: 1 }, 0.8)
-      .from(".intro-actions .btn", { y: 30, opacity: 0, duration: 1, stagger: 0.1 }, 0.95)
-      .from(".intro-now", { x: 40, opacity: 0, duration: 1 }, 1.1)
-      .from(".top", { y: -80, opacity: 0, duration: 1 }, 0.4)
-      .from(".scroll-cue", { opacity: 0, duration: 1 }, 1.4);
-
-    // Intro parallax: video drifts and zooms, the title lifts away.
-    gsap.to(".intro-media", { yPercent: 25, scale: 1.15, ease: "none", scrollTrigger: { trigger: ".intro", start: "top top", end: "bottom top", scrub: true } });
-    gsap.to(".intro-content", { yPercent: -30, opacity: 0, ease: "none", scrollTrigger: { trigger: ".intro", start: "30% top", end: "bottom top", scrub: true } });
-    gsap.to(".intro-outline", { xPercent: -25, ease: "none", scrollTrigger: { trigger: ".intro", start: "top top", end: "bottom top", scrub: true } });
-
-    // Marquee rows loop forever and speed up with scroll velocity.
-    const loops = $$(".marquee-row").map((row, i) => {
-      const dir = row.classList.contains("reverse") ? 1 : -1;
-      return gsap.fromTo($$(".mq-inner", row), { xPercent: dir < 0 ? 0 : -100 }, { xPercent: dir < 0 ? -100 : 0, duration: 60 + i * 10, ease: "none", repeat: -1 });
-    });
-    // Only react to scroll while the marquee is on screen, and skew the two rows rather than every tile.
-    const rows = $$(".marquee-row");
-    let skew = 0, marqueeOn = true;
-    ScrollTrigger.create({
-      trigger: ".marquee", start: "top bottom", end: "bottom top",
-      onToggle: (self) => { marqueeOn = self.isActive; loops.forEach((l) => l.paused(!marqueeOn)); }
-    });
-    ScrollTrigger.create({
-      onUpdate: (self) => {
-        if (!marqueeOn) return;
-        const v = self.getVelocity();
-        const boost = 1 + Math.min(4, Math.abs(v) / 400);
-        loops.forEach((l) => gsap.to(l, { timeScale: boost * (v < 0 ? -1 : 1), duration: 0.3, overwrite: true, onComplete: () => gsap.to(l, { timeScale: v < 0 ? -1 : 1, duration: 1.2 }) }));
-        const sk = gsap.utils.clamp(-8, 8, v / -250);
-        if (Math.abs(sk - skew) > 0.3) { skew = sk; gsap.to(rows, { skewX: sk, duration: 0.4, overwrite: true, onComplete: () => gsap.to(rows, { skewX: 0, duration: 0.8 }) }); }
-      }
-    });
-    gsap.from(".marquee", { opacity: 0, y: 60, duration: 1.2, ease: "power3.out", scrollTrigger: { trigger: ".marquee", start: "top 90%" } });
-
-    // Section titles reveal word by word.
-    $$(".split-words").forEach((el) => {
-      const s = new SplitText(el, { type: "words", wordsClass: "w" });
-      gsap.from(s.words, { yPercent: 110, opacity: 0, rotate: 4, duration: 1, ease: "expo.out", stagger: 0.06, scrollTrigger: { trigger: el, start: "top 85%" } });
-    });
-    $$(".eyebrow").forEach((el) => gsap.from($(".line", el), { scaleX: 0, transformOrigin: "0 50%", duration: 1, ease: "expo.out", scrollTrigger: { trigger: el, start: "top 90%" } }));
-
-    // Top 5: pinned horizontal scroll on wide screens, swipe row on phones.
-    const mm = gsap.matchMedia();
-    mm.add("(min-width: 900px)", () => {
-      const track = $("#top-track");
-      const dist = () => track.scrollWidth - window.innerWidth + 48;
-      const tween = gsap.to(track, {
-        x: () => -dist(),
-        ease: "none",
-        scrollTrigger: { trigger: ".top-pin", pin: true, start: "top top", end: () => `+=${dist()}`, scrub: 1, invalidateOnRefresh: true, anticipatePin: 1 }
-      });
-      $$(".top-card").forEach((card) => {
-        gsap.from($(".top-art", card), { scale: 0.6, rotate: -6, opacity: 0.2, ease: "none", scrollTrigger: { trigger: card, containerAnimation: tween, start: "left right", end: "center center", scrub: true } });
-        gsap.from($(".top-rank", card), { yPercent: 60, opacity: 0, ease: "none", scrollTrigger: { trigger: card, containerAnimation: tween, start: "left right", end: "left center", scrub: true } });
-      });
-    });
-    mm.add("(max-width: 899px)", () => {
-      gsap.from(".top-card", { y: 80, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.12, scrollTrigger: { trigger: "#top-track", start: "top 85%" } });
-    });
-
-    gsap.from(".num", { y: 60, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.1, scrollTrigger: { trigger: ".numbers", start: "top 85%" } });
-    gsap.from(".controls, .legend", { y: 40, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.1, scrollTrigger: { trigger: ".controls", start: "top 90%" } });
-
-    gsap.from(".hl-card", { y: 70, opacity: 0, duration: 1, ease: "expo.out", stagger: 0.06, clearProps: "transform,opacity", scrollTrigger: { trigger: "#hl-row", start: "top 88%" } });
-
-    // Hero cards flip in, batch by batch, as they scroll into view.
-    gsap.set(".card", { opacity: 0, y: 80, rotateX: -35, scale: 0.9 });
-    ScrollTrigger.batch(".card", {
-      start: "top 92%",
-      once: true,
-      onEnter: (batch) => gsap.to(batch, { opacity: 1, y: 0, rotateX: 0, scale: 1, duration: 0.9, ease: "expo.out", stagger: 0.05, clearProps: "transform,opacity" })
-    });
-  }
-
-  // ---------- ambient ----------
-
-  let lenis = null;
-  function initSmoothScroll() {
-    if (!window.Lenis || reduceMotion) return;
-    lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
-    lenis.on("scroll", ScrollTrigger.update);
-    gsap.ticker.add((t) => lenis.raf(t * 1000));
-    gsap.ticker.lagSmoothing(0);
-  }
+  // ---------- page chrome ----------
 
   function initScrollUi() {
     const bar = $(".progress");
     const header = $(".top");
-    const onScroll = () => {
+    let ticking = false;
+    const update = () => {
+      ticking = false;
       const max = document.documentElement.scrollHeight - innerHeight;
       bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
       header.classList.toggle("scrolled", scrollY > 20);
     };
-    addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
+    addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+    update();
 
     document.addEventListener("click", (e) => {
       const a = e.target.closest("[data-scroll]");
       if (!a) return;
       e.preventDefault();
-      const go = () => {
-        const target = $(a.dataset.scroll);
-        if (!target) return;
-        if (lenis) lenis.scrollTo(target, { offset: -70, duration: 1.6 });
-        else target.scrollIntoView({ behavior: "smooth" });
-      };
-      if (current !== "list") { location.hash = "#/"; setTimeout(go, 1400); } else go();
+      const go = () => { const target = $(a.dataset.scroll); if (target) target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" }); };
+      if (current !== "list") { location.hash = "#/"; setTimeout(go, 400); } else go();
     });
   }
-
-  // Cursor follower that grows over links and shows a label over hero cards.
-  function initCursor() {
-    if (!finePointer || !hasGsap) { $(".cursor").remove(); return; }
-    document.body.classList.add("has-cursor");
-    const dot = $(".cursor-dot"), ringEl = $(".cursor-ring"), label = $(".cursor-ring span");
-    const xd = gsap.quickTo(dot, "x", { duration: 0.1 }), yd = gsap.quickTo(dot, "y", { duration: 0.1 });
-    const xr = gsap.quickTo(ringEl, "x", { duration: 0.45, ease: "power3" }), yr = gsap.quickTo(ringEl, "y", { duration: 0.45, ease: "power3" });
-    addEventListener("pointermove", (e) => {
-      xd(e.clientX); yd(e.clientY); xr(e.clientX); yr(e.clientY);
-      const card = e.target.closest(".card, .top-card, .mq");
-      const link = e.target.closest("a, button, select, input, label, .dd-menu li");
-      document.body.classList.toggle("cursor-view", !!card);
-      document.body.classList.toggle("cursor-link", !card && !!link);
-      label.textContent = card ? "View" : "";
-    });
-    document.addEventListener("mouseleave", () => gsap.to(".cursor", { opacity: 0 }));
-    document.addEventListener("mouseenter", () => gsap.to(".cursor", { opacity: 1 }));
-  }
-
-  // 3D tilt and glare that follows the pointer on hero cards.
-  function initTilt() {
-    if (!finePointer) return;
-    let active = null;
-    document.addEventListener("pointermove", (e) => {
-      const card = e.target.closest(".card");
-      if (active && active !== card) gsap.to(active, { rotateX: 0, rotateY: 0, duration: 0.6, ease: "power3.out" });
-      active = card;
-      if (!card) return;
-      const r = card.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      gsap.to(card, { rotateX: (0.5 - y) * 16, rotateY: (x - 0.5) * 18, transformPerspective: 700, duration: 0.4, ease: "power2.out" });
-      card.style.setProperty("--mx", `${x * 100}%`);
-      card.style.setProperty("--my", `${y * 100}%`);
-    });
-  }
-
-  // Glowing embers drifting up behind the page.
-  function initEmbers() {
-    const canvas = $("#embers");
-    if (!canvas.getContext) { canvas.remove(); return; }
-    const ctx = canvas.getContext("2d");
-    const lite = !finePointer || innerWidth < 900;
-    // The embers are soft glows, so they gain nothing from a high-DPI canvas.
-    const dpr = 1;
-    // One glow sprite per hue band, drawn once, then stamped with drawImage (no gradients per frame).
-    const sprites = [14, 26, 38].map((hue) => {
-      const c = document.createElement("canvas");
-      c.width = c.height = 64;
-      const g = c.getContext("2d");
-      const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-      grad.addColorStop(0, `hsla(${hue}, 100%, 68%, 1)`);
-      grad.addColorStop(0.35, `hsla(${hue}, 100%, 55%, .45)`);
-      grad.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
-      g.fillStyle = grad;
-      g.fillRect(0, 0, 64, 64);
-      return c;
-    });
-    let w, h, parts = [];
-    const spawn = (anywhere) => ({
-      x: Math.random() * w, y: anywhere ? Math.random() * h : h + 10,
-      r: 0.8 + Math.random() * 2.6, vy: 0.3 + Math.random() * 1.1, vx: (Math.random() - 0.5) * 0.3,
-      phase: Math.random() * Math.PI * 2, s: sprites[(Math.random() * sprites.length) | 0], life: 0.5 + Math.random() * 0.5
-    });
-    let lastW = 0;
-    const resize = () => {
-      // Mobile browsers fire resize when the address bar slides; only rebuild when the width changes.
-      if (innerWidth === lastW && parts.length) { h = canvas.height = innerHeight * dpr; return; }
-      lastW = innerWidth;
-      w = canvas.width = innerWidth * dpr;
-      h = canvas.height = innerHeight * dpr;
-      const n = Math.round(Math.min(lite ? 36 : 80, (innerWidth * innerHeight) / (lite ? 16000 : 14000)));
-      parts = Array.from({ length: n }, () => spawn(true));
-    };
-    resize();
-    addEventListener("resize", resize);
-    let running = !document.hidden, last = 0;
-    const step = lite ? 1000 / 30 : 0;
-    document.addEventListener("visibilitychange", () => { running = !document.hidden; if (running) requestAnimationFrame(frame); });
-    function frame(t) {
-      if (!running) return;
-      requestAnimationFrame(frame);
-      if (step && t - last < step) return;
-      const k = last ? Math.min(3, (t - last) / 16.7) : 1;
-      last = t;
-      ctx.clearRect(0, 0, w, h);
-      ctx.globalCompositeOperation = "lighter";
-      for (const p of parts) {
-        p.y -= p.vy * dpr * k;
-        p.x += (p.vx + Math.sin(t / 900 + p.phase) * 0.3) * dpr * k;
-        if (p.y < -10) Object.assign(p, spawn(false));
-        ctx.globalAlpha = Math.max(0, Math.min(1, p.y / h + 0.2) * p.life);
-        const d = p.r * dpr * 8;
-        ctx.drawImage(p.s, p.x - d / 2, p.y - d / 2, d, d);
-      }
-      ctx.globalAlpha = 1;
-    }
-    requestAnimationFrame(frame);
-  }
-
-  // ---------- preloader ----------
 
   function startLoader() {
-    const num = $("#loader-num"), bar = $("#loader-bar");
-    const o = { v: 0 };
-    let tween = null;
-    const to = (v, d) => {
-      if (!hasGsap) { num.textContent = Math.round(v); bar.style.transform = `scaleX(${v / 100})`; return; }
-      tween && tween.kill();
-      tween = gsap.to(o, { v, duration: d, ease: "power2.out", onUpdate: () => { num.textContent = Math.round(o.v); bar.style.transform = `scaleX(${o.v / 100})`; } });
-      return tween;
-    };
-    if (hasGsap) {
-      // The logo "ignites": plate fades in, lava veins spread, then the glyph flares up.
-      gsap.timeline()
-        .from(".loader-logo", { scale: 0.6, opacity: 0, duration: 0.9, ease: "back.out(1.6)" })
-        .from(".loader-logo .d2-veins path", { strokeDasharray: 40, strokeDashoffset: 40, duration: 1.2, ease: "power2.out", stagger: 0.08 }, 0.3)
-        .fromTo(".loader-logo .d2-glyph", { opacity: 0.05 }, { opacity: 1, duration: 1.4, ease: "power2.in" }, 0.5);
-    }
-    to(70, 2.5);
     const started = performance.now();
     return {
       async finish() {
-        // Keep the intro on screen long enough to be seen, even when data comes from cache.
-        await new Promise((r) => setTimeout(r, Math.max(0, 1800 - (performance.now() - started))));
-        return new Promise((resolve) => {
-          if (!hasGsap) { $("#loader").remove(); document.body.classList.remove("is-loading"); resolve(); return; }
-          to(100, 0.6).then(() => {
-            gsap.timeline({ onComplete: () => { $("#loader").remove(); resolve(); } })
-              .to(".loader-count, .loader-bar, .loader-text", { y: -30, opacity: 0, duration: 0.5, stagger: 0.05, ease: "power3.in" })
-              .to(".loader-logo", { scale: 9, opacity: 0, duration: 0.9, ease: "expo.in" }, "-=0.2")
-              .to("#loader", { clipPath: "inset(0 0 100% 0)", duration: 1, ease: "expo.inOut" }, "-=0.35")
-              .add(() => document.body.classList.remove("is-loading"), "-=0.8");
-          });
-        });
+        await new Promise((r) => setTimeout(r, Math.max(0, 700 - (performance.now() - started))));
+        const el = $("#loader");
+        el.classList.add("done");
+        document.body.classList.remove("is-loading");
+        setTimeout(() => el.remove(), 600);
       },
       fail(err) {
         $(".loader-text").innerHTML = `<span class="bad">Failed to load data: ${esc(err && err.message)}</span><br>Please reload the page in a moment.`;
+        $("#loader").classList.add("failed");
       }
     };
   }
@@ -1199,7 +923,6 @@
   async function boot() {
     registerServiceWorker();
     const loader = startLoader();
-    initEmbers();
     loadHighlights();
 
     loadPatch().then((p) => {
@@ -1218,37 +941,24 @@
     }
 
     renderHomeHighlights(await loadHighlights());
-
-    // Wait briefly so the patch number lands in the title before it animates.
-    await Promise.race([loadPatch().catch(() => {}), new Promise((r) => setTimeout(r, 800))]);
+    await Promise.race([loadPatch().catch(() => {}), new Promise((r) => setTimeout(r, 600))]);
 
     state.meta = computeMeta(state.bracket);
     renderIntro();
-    renderMarquee();
     renderTop();
+    initTopHover();
     buildCards();
     updateCards();
     applyFilters({ animate: false });
     renderNumbers(true);
     initFilters();
-
-    initSmoothScroll();
     initScrollUi();
-    initCursor();
-    initTilt();
     initPlayer();
 
-    const firstIsHero = /^#\/(hero\/\d+|highlights)/.test(location.hash);
     await loader.finish();
-    if (!firstIsHero) animateListIn();
+    document.body.classList.add("ready");
     route(true);
-    if (firstIsHero) {
-      // Build list animations once the visitor first returns to the list.
-      let done = false;
-      addEventListener("hashchange", () => setTimeout(() => {
-        if (!done && current === "list") { done = true; animateListIn(); }
-      }, 900));
-    }
+    reveal(document);
     addEventListener("hashchange", () => route());
   }
 

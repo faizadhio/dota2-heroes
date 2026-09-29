@@ -4,7 +4,7 @@ Every Dota 2 hero with win rate, pick rate and an S to D meta tier for the chose
 
 Live site: https://faizadhio.github.io/dota2-heroes/
 
-Built with the OpenDota API. A static site (`index.html`, `style.css`, `app.js`) with no build step. Fonts (Unbounded and Chakra Petch) are self-hosted in `fonts/`. Animation uses GSAP (ScrollTrigger, SplitText, Flip) and Lenis smooth scrolling, vendored in `vendor/`. Data comes live from the free [OpenDota API](https://docs.opendota.com/) and is cached in the browser for a day to stay under its 60 requests per minute limit.
+Built with the OpenDota API. A static site (`index.html`, `style.css`, `app.js`) with no build step. Fonts (Unbounded and Chakra Petch) are self-hosted in `fonts/`. Animation is plain CSS: elements fade up once as they scroll into view, and scrolling is left to the browser. Data comes live from the free [OpenDota API](https://docs.opendota.com/) and is cached in the browser for a day to stay under its 60 requests per minute limit.
 
 A GitHub Action (`.github/workflows/snapshot.yml`) runs `scripts/snapshot.mjs` every day and commits a snapshot of that data to `data/`. The site reads the snapshot when it is less than three days old and falls back to the live API otherwise. Run the workflow by hand from the Actions tab to refresh it right away.
 

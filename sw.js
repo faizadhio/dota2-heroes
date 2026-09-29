@@ -1,12 +1,11 @@
 // Offline-capable cache for the static site.
-// vendor/ and fonts/ never change, so they are served from cache first. Pages, code and data go to the
+// fonts/ never change, so they are served from cache first. Pages, code and data go to the
 // network first (so a deploy shows up right away) and fall back to the cache when the network is slow or offline.
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = `runtime-${VERSION}`;
 const PRECACHE = [
   "./", "index.html", "style.css", "app.js",
-  "vendor/gsap.min.js", "vendor/ScrollTrigger.min.js", "vendor/SplitText.min.js", "vendor/Flip.min.js", "vendor/lenis.min.js",
   "fonts/unbounded-latin-700-normal.woff2", "fonts/unbounded-latin-900-normal.woff2",
   "fonts/chakra-petch-latin-400-normal.woff2", "fonts/chakra-petch-latin-500-normal.woff2",
   "fonts/chakra-petch-latin-600-normal.woff2", "fonts/chakra-petch-latin-700-normal.woff2"
@@ -54,7 +53,7 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin === location.origin) {
-    if (url.pathname.includes("/vendor/") || url.pathname.includes("/fonts/")) e.respondWith(cacheFirst(req));
+    if (url.pathname.includes("/fonts/")) e.respondWith(cacheFirst(req));
     else e.respondWith(networkFirst(req));
   } else if (url.hostname === "api.opendota.com") {
     e.respondWith(networkFirst(req));

@@ -18,17 +18,10 @@
   <!-- Preloader -->
   <div id="loader" aria-hidden="true">
     <span class="logo-slot loader-logo" data-id="lg"></span>
-    <div class="loader-count"><span id="loader-num">0</span><small>%</small></div>
-    <div class="loader-bar"><i id="loader-bar"></i></div>
+    <div class="loader-bar"><i></i></div>
     <p class="loader-text">Preparing meta data…</p>
   </div>
 
-  <!-- Page wipe used between list and hero pages -->
-  <div class="wipe" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-
-  <div class="grain" aria-hidden="true"></div>
-  <canvas id="embers" aria-hidden="true"></canvas>
-  <div class="cursor" aria-hidden="true"><i class="cursor-dot"></i><i class="cursor-ring"><span></span></i></div>
   <div class="progress" aria-hidden="true"></div>
 
   <header class="top">
@@ -74,55 +67,44 @@
           <div class="intro-glow"></div>
           <video id="intro-video" muted loop playsinline preload="auto" aria-hidden="true"></video>
         </div>
-        <div class="intro-outline" aria-hidden="true">DOTA 2</div>
         <div class="wrap intro-content">
-          <p class="eyebrow"><span class="line"></span>Live from OpenDota</p>
-          <h1 class="intro-title">
-            <span class="split">Master</span>
-            <span class="split">the meta</span>
-            <span class="split gold" id="intro-patch">latest</span>
+          <p class="eyebrow" data-rv><span class="line"></span>Live from OpenDota</p>
+          <h1 class="intro-title" data-rv style="--d:1">
+            <span>Master the meta</span>
+            <span class="gold" id="intro-patch">latest</span>
           </h1>
-          <p class="intro-lead">Win rate, pick rate, tier and item build for every Dota 2 hero, calculated from hundreds of thousands of recent matches.</p>
-          <div class="intro-actions">
+          <p class="intro-lead" data-rv style="--d:2">Win rate, pick rate, tier and item build for every Dota 2 hero, calculated from hundreds of thousands of recent matches.</p>
+          <div class="intro-actions" data-rv style="--d:3">
             <a class="btn btn-primary" href="#/" data-scroll="#heroes"><span>Explore heroes</span></a>
             <a class="btn btn-ghost" id="intro-hero-link" href="#/"><span>Strongest hero right now</span></a>
           </div>
-          <div class="intro-now" id="intro-now"></div>
+          <div class="intro-now" id="intro-now" data-rv style="--d:4"></div>
         </div>
-        <div class="scroll-cue" aria-hidden="true"><span>Scroll</span><i></i></div>
-      </section>
-
-      <!-- Marquee -->
-      <section class="marquee" aria-hidden="true">
-        <div class="marquee-row" id="marquee-a"></div>
-        <div class="marquee-row reverse" id="marquee-b"></div>
       </section>
 
       <!-- Top meta -->
       <section class="top-meta" id="top-meta">
-        <div class="top-pin">
-          <div class="wrap top-head">
-            <p class="eyebrow"><span class="line"></span><span id="top-bracket">All ranks</span></p>
-            <h2 class="section-title split-words">Five heroes ruling the meta</h2>
-          </div>
-          <div class="top-track" id="top-track"></div>
+        <div class="wrap top-head">
+          <p class="eyebrow" data-rv><span class="line"></span><span id="top-bracket">All ranks</span></p>
+          <h2 class="section-title" data-rv style="--d:1">Five heroes ruling the meta</h2>
         </div>
+        <div class="wrap top-track" id="top-track"></div>
       </section>
 
       <!-- Numbers -->
       <section class="wrap numbers">
-        <div class="num"><b data-count id="n-heroes">0</b><span>Heroes analyzed</span></div>
-        <div class="num"><b data-count id="n-picks">0</b><span>Picks across all ranks</span></div>
-        <div class="num"><b data-count id="n-s">0</b><span>S tier heroes</span></div>
-        <div class="num"><b data-count id="n-best">0</b><span>Highest win rate</span></div>
+        <div class="num" data-rv style="--d:0"><b data-count id="n-heroes">0</b><span>Heroes analyzed</span></div>
+        <div class="num" data-rv style="--d:1"><b data-count id="n-picks">0</b><span>Picks across all ranks</span></div>
+        <div class="num" data-rv style="--d:2"><b data-count id="n-s">0</b><span>S tier heroes</span></div>
+        <div class="num" data-rv style="--d:3"><b data-count id="n-best">0</b><span>Highest win rate</span></div>
       </section>
 
       <!-- Tournament highlights, filled from data/highlights.json -->
       <section class="wrap highlights" id="highlights" hidden>
         <div class="hl-head">
-          <div>
+          <div data-rv>
             <p class="eyebrow"><span class="line"></span>Fresh from the pro scene</p>
-            <h2 class="section-title split-words">Tournament highlights</h2>
+            <h2 class="section-title">Tournament highlights</h2>
           </div>
           <a class="btn btn-ghost" href="#/highlights"><span>All highlights</span></a>
         </div>
@@ -131,18 +113,17 @@
 
       <!-- All heroes -->
       <section class="wrap browse" id="heroes">
-        <div class="browse-head">
+        <div class="browse-head" data-rv>
           <p class="eyebrow"><span class="line"></span>Full tier list</p>
-          <h2 class="section-title split-words">Pick your hero</h2>
+          <h2 class="section-title">Pick your hero</h2>
         </div>
 
-        <div class="controls" id="controls">
+        <div class="controls" id="controls" data-rv style="--d:1">
           <label class="search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
             <input id="search" type="search" placeholder="Search heroes…" autocomplete="off" aria-label="Search heroes">
           </label>
           <div class="seg" id="attr-filter" role="group" aria-label="Primary attribute">
-            <span class="seg-thumb" aria-hidden="true"></span>
             <button data-attr="" class="on">All</button>
             <button data-attr="str"><i class="attr str"></i>Str</button>
             <button data-attr="agi"><i class="attr agi"></i>Agi</button>
@@ -205,11 +186,6 @@
     Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota</a>. Highlight videos are embedded from their creators' YouTube channels. Tiers are calculated from win rate and pick rate in the selected bracket. Dota 2 is a trademark of Valve Corporation; this site is not affiliated with Valve.
   </footer>
 
-  <script src="vendor/gsap.min.js"></script>
-  <script src="vendor/ScrollTrigger.min.js"></script>
-  <script src="vendor/SplitText.min.js"></script>
-  <script src="vendor/Flip.min.js"></script>
-  <script src="vendor/lenis.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
