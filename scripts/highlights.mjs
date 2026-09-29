@@ -13,7 +13,7 @@ const CHANNELS = [
 ];
 // Tournament channels also upload full broadcasts, interviews and trailers; keep the highlight-style videos.
 const HIGHLIGHT = /highlight|best (moments|plays)|top \d+|top plays|moments|recap|rampage|ultra kill/i;
-const MAX = 48;
+const MAX = 60;
 const OUT = new URL("../data/highlights.json", import.meta.url);
 const KEY = process.env.YOUTUBE_API_KEY;
 const HEADERS = {
