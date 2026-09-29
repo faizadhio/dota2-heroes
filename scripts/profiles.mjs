@@ -57,13 +57,16 @@ const specialsList = (specials) => specials
 function talentText(t, abilities) {
   const key = (k) => k.toLowerCase().replace(/^bonus_/, "");
   const found = {};
+  const all = new Set();
   for (const a of abilities) for (const sv of a.special_values || []) {
-    for (const b of sv.bonuses || []) if (b.name === t.name) found[key(sv.name)] = b.value;
+    for (const b of sv.bonuses || []) if (b.name === t.name) { found[key(sv.name)] = b.value; all.add(b.value); }
   }
   for (const sv of t.special_values || []) if (sv.values_float && sv.values_float.length) found[key(sv.name)] = sv.values_float[0];
   return clean(t.name_loc)
     .replace(/\{s:([a-z0-9_]+)\}/gi, (m, k) => {
-      const v = found[key(k)];
+      // Names don't always match (a talent can say {s:bonus_alacrity} for a bonus stored as bonus_damage);
+      // when every bonus the talent grants is the same number, that number is the one it means.
+      const v = found[key(k)] ?? (all.size === 1 ? [...all][0] : undefined);
       return v == null ? "\u0000" : num(v);
     })
     // A value the feed doesn't carry leaves a bare "+%" or "x"; drop it rather than show a hole.

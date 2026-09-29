@@ -18,9 +18,6 @@ jobs:
           jq -c '[.abilities[] | {title, values, shard, scepter}]' data/profiles/102.json
           jq -c '.talents' data/profiles/74.json data/profiles/89.json
           jq -r '.abilities[].desc' data/profiles/*.json | grep -c '%%' || true
-          curl -s "https://www.dota2.com/datafeed/herodata?language=english&hero_id=74" -o r.json
-          jq -c '.result.data.heroes[0].talents[] | {name, name_loc, sv: [.special_values[] | {name, values_float}]}' r.json
-          jq -c '.result.data.heroes[0].abilities[] | .name as $a | .special_values[] | select((.bonuses|length)>0) | {a: $a, n: .name, b: .bonuses}' r.json | grep -i -E "special_bonus_unique_invoker_(3|13|5|6|10)\b|alacrity" | cut -c1-300
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
