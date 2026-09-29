@@ -739,9 +739,10 @@
   const abilityImg = (name) => `${CDN}/apps/dota2/images/dota_react/abilities/${name}.png`;
   const fixed = (v, d = 1) => (v == null ? "–" : Number.isInteger(v) ? String(v) : v.toFixed(d).replace(/\.0$/, ""));
   const safeHtml = (s) => esc(s).replace(/&lt;(\/?b)&gt;/gi, "<$1>").replace(/&lt;br\s*\/?&gt;/gi, "<br>");
-  // Attack damage at level 1 includes the primary attribute (universal heroes get 45% of all three).
+  // The feed's damage already counts a single-attribute hero's primary stat; universal heroes still need
+  // their 45% of all three added, which is how dota2.com shows it.
   function attackDamage(p) {
-    const bonus = p.primary === "all" ? (p.str[0] + p.agi[0] + p.int[0]) * 0.45 : (p[p.primary] || [0])[0];
+    const bonus = p.primary === "all" ? (p.str[0] + p.agi[0] + p.int[0]) * 0.45 : 0;
     return p.damage.map((d) => Math.floor(d + bonus));
   }
 

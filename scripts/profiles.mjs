@@ -49,7 +49,7 @@ function fill(text, specials, which) {
 
 // The headed values dota2.com lists under an ability ("DAMAGE/HEAL: 95 / 170 / 245 / 320").
 const specialsList = (specials) => specials
-  .filter((sv) => sv.heading_loc && (sv.values_float || []).length)
+  .filter((sv) => sv.heading_loc && (sv.values_float || []).some((v) => v))
   .map((sv) => ({ label: clean(sv.heading_loc).replace(/:$/, ""), value: valueText(sv, null, true) }));
 
 // Talent names look like "+{s:bonus_curse_dps} Curse of Avernus DPS"; the number lives in the ability the
