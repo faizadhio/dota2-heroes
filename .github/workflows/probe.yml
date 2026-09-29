@@ -1,0 +1,16 @@
+name: Probe ability videos (temporary)
+on:
+  push:
+    branches: [claude/project-thread-ujzb8t]
+    paths: [.github/workflows/probe.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          B=https://cdn.cloudflare.steamstatic.com/apps/dota2/videos/dota_react/abilities
+          for u in abaddon/abaddon_death_coil.webm abaddon/abaddon_death_coil.mp4 abaddon/abaddon_death_coil.jpg abaddon/abaddon_borrowed_time.webm abaddon/abaddon_borrowed_time_aghanims_scepter.webm abaddon/abaddon_borrowed_time_scepter.webm abaddon/abaddon_aphotic_shield_aghanims_shard.webm abaddon/abaddon_aphotic_shield_shard.webm abaddon/abaddon_withering_mist.webm axe/axe_berserkers_call.webm axe/axe_berserkers_call.mp4 invoker/invoker_sun_strike.webm antimage/antimage_mana_break.webm; do
+            curl -s -o /dev/null -I -w "%{http_code} %{content_type} %{size_download} $u\n" "$B/$u"
+          done
+          curl -s "https://www.dota2.com/hero/abaddon" | grep -o 'videos/dota_react/abilities[^"]*' | head
+          curl -s "https://www.dota2.com/public/javascript/dota_react/*.js" -o /dev/null -w "%{http_code}\n" || true
