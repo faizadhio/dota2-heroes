@@ -329,6 +329,8 @@ video.portrait {
 .hero-skills { padding: 56px 0 18px; scroll-margin-top: 70px; }
 .skills-title { margin: 0 0 24px; text-align: center; font: 500 22px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; }
 .skills-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+/* The ability strip scrolls sideways on phones; without this its width would stretch the column past the screen. */
+.skills-grid > * { min-width: 0; }
 .ad-media { position: relative; aspect-ratio: 16 / 9; background: #0c0d11 center / cover no-repeat; border: 1px solid var(--border); overflow: hidden; }
 .ad-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.03); transition: opacity .5s ease, transform .8s cubic-bezier(.2, .7, .2, 1); }
 .ad-video.on { opacity: 1; transform: none; z-index: 1; }
@@ -552,7 +554,7 @@ video.portrait {
 @media (max-width: 899px) {
   .patch { margin-left: auto; }
   .top-meta { padding: 70px 0 20px; }
-  .top-track { display: flex; width: auto; margin-inline: 0; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 20px 10px; scroll-padding-inline: 20px; scrollbar-width: none; }
+  .top-track { display: flex; width: auto; margin-inline: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; padding: 0 20px 10px; scroll-padding-inline: 20px; scrollbar-width: none; }
   .top-track::-webkit-scrollbar { display: none; }
   .top-card { flex: 0 0 min(62vw, 280px); scroll-snap-align: start; }
   .top-info h3 { font-size: 19px; }
@@ -585,7 +587,7 @@ video.portrait {
   .hero-skills { padding-top: 34px; }
   .skills-title { font-size: 16px; margin-bottom: 16px; }
   .skills-grid { grid-template-columns: 1fr; gap: 18px; }
-  .ad-strip { margin: 10px -16px 0; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; padding: 4px 16px; gap: 8px; scrollbar-width: none; }
+  .ad-strip { margin: 10px -16px 0; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; padding: 4px 16px; gap: 8px; scrollbar-width: none; }
   .ad-strip::-webkit-scrollbar { display: none; }
   .ab-thumb { width: 54px; height: 54px; flex: none; }
   .ab-detail .ad-head { padding: 18px 16px 14px; gap: 12px; }
@@ -778,10 +780,12 @@ body.player-open { overflow: hidden; }
   .highlights { padding-top: 70px; }
   .hl-head { align-items: flex-start; flex-direction: column; gap: 16px; margin-bottom: 24px; }
   /* Home row becomes a swipeable strip on phones */
-  .hl-row { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 0 16px 6px; scrollbar-width: none; }
+  .hl-row { display: flex; gap: 14px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 0 16px 6px; scrollbar-width: none; }
   .hl-row::-webkit-scrollbar { display: none; }
   .hl-row .hl-card { flex: 0 0 78%; scroll-snap-align: start; }
   .hl-row .hl-card:nth-child(n + 7) { display: flex; }
+  /* Cards still waiting to fade in sat 24px low, which let the sideways rows also be dragged down. */
+  .hl-row [data-rv], .top-track [data-rv] { transform: none; }
   .hl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; row-gap: 26px; }
   .hl-page { padding-top: 130px; }
   .hl-page .back { top: 78px; }
