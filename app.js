@@ -760,19 +760,23 @@
       </div>`;
   }
 
-  // One entry per ability, innate first, then an extra entry for each Aghanim's Scepter or Shard upgrade,
-  // the way the ability strip on dota2.com lists them.
+  // One entry per ability, innate first, then one entry each for Aghanim's Shard and Scepter, the way the
+  // ability strip on dota2.com lists them. An ability the Shard or Scepter grants outright only shows up
+  // as that upgrade entry, tagged as a new ability.
   function abilityEntries(p) {
+    const granted = (a, kind) => kind === "scepter" ? a.fromScepter : a.fromShard;
     const base = [...p.abilities.filter((a) => a.innate), ...p.abilities.filter((a) => !a.innate)];
-    const out = base.map((a) => ({ key: a.name, a, kind: "base" }));
-    for (const kind of ["scepter", "shard"]) {
-      for (const a of base) {
-        const granted = kind === "scepter" ? a.fromScepter : a.fromShard;
-        if (a[kind] && !granted) out.push({ key: `${a.name}:${kind}`, a, kind });
-      }
+    const out = base.filter((a) => !a.fromShard && !a.fromScepter).map((a) => ({ key: a.name, a, kind: "base" }));
+    for (const kind of ["shard", "scepter"]) {
+      const flag = kind === "scepter" ? "hasScepter" : "hasShard";
+      // Profiles written before the upgrade flags existed fall back to the first ability with upgrade text.
+      const a = base.find((x) => x[flag]) || base.find((x) => granted(x, kind)) || base.find((x) => x[kind]);
+      if (a) out.push({ key: `${a.name}:${kind}`, a, kind, granted: !!granted(a, kind) });
     }
     return out;
   }
+  // Each upgrade has one clip of its own per hero (<hero>_aghanims_shard / _scepter), showing what it adds.
+  const clipName = (h, e) => e.kind === "base" ? e.a.name : `${heroSlug(h)}_aghanims_${e.kind}`;
   const abilityVideo = (h, name, ext) => `${CDN}/apps/dota2/videos/dota_react/abilities/${heroSlug(h)}/${name}.${ext}`;
   const abButton = (e, cls, selected) => `<button type="button" class="${cls}${e.a.innate ? " innate" : ""}${e.kind !== "base" ? ` up ${e.kind}` : ""}" data-ab="${esc(e.key)}" aria-pressed="${selected}" title="${esc(e.a.title)}${e.kind !== "base" ? ` (Aghanim's ${e.kind === "scepter" ? "Scepter" : "Shard"})` : ""}">
       <img src="${esc(abilityImg(e.a.name))}" alt="${esc(e.a.title)}" loading="lazy"><span>${esc(e.a.title.slice(0, 2))}</span>${e.kind !== "base" ? `<i class="aghs-badge ${e.kind}" aria-hidden="true"></i>` : ""}
@@ -791,9 +795,11 @@
   function abilityDetail(e) {
     const { a, kind } = e;
     const vals = (arr) => arr.map((v) => fixed(v)).join(" / ");
-    const tags = kind === "scepter" ? ["Scepter ability upgrade"] : kind === "shard" ? ["Shard ability upgrade"]
-      : [a.innate && "Innate", a.ult && "Ultimate", a.fromScepter && "Granted by Aghanim's Scepter", a.fromShard && "Granted by Aghanim's Shard"].filter(Boolean);
-    const base = kind === "base";
+    const up = kind === "scepter" ? "Scepter" : "Shard";
+    const tags = kind === "base" ? [a.innate && "Innate", a.ult && "Ultimate"].filter(Boolean)
+      : e.granted ? [`New ability from Aghanim's ${up}`] : [`${up} ability upgrade`];
+    // A granted ability reads like a normal one: its own description, values and notes.
+    const base = kind === "base" || e.granted;
     return `
       <div class="ad-head">
         <img src="${esc(abilityImg(a.name))}" alt="" class="ad-img">
@@ -868,6 +874,7 @@
           <div class="ad-stage" data-rv>
             <div class="ad-media">
               <video class="ad-video" muted loop playsinline preload="none" aria-hidden="true"></video>
+              <video class="ad-video" muted loop playsinline preload="none" aria-hidden="true"></video>
               <img class="ad-fallback" alt="">
             </div>
             <div class="ad-strip" aria-label="All abilities">${abilityEntries(p).map((e, i) => abButton(e, "ab-thumb", i === 0)).join("")}</div>
@@ -876,6 +883,30 @@
         </div>
       </section>
       ${talents ? `<section class="wrap hero-talents"><div class="panel talents" data-rv><h2>Talents</h2><div class="tl">${talents}</div></div></section>` : ""}` : ""}`;
+  }
+
+  // The band at the bottom of a hero page, like dota2.com's: the neighbouring heroes' renders stand on it,
+  // leaning out of each side, with a link back to the full list in the middle.
+  function heroFootNav(prev, next) {
+    const card = (h, dir) => {
+      const [render, older] = heroRenders(h);
+      const attack = h.attack_type || "";
+      return `<a href="#/hero/${h.id}" class="fn-card ${dir} attr-${esc(h.primary_attr)}" aria-label="${dir === "prev" ? "Previous" : "Next"} hero, ${esc(h.localized_name)}">
+          <span class="fn-art" aria-hidden="true"><img src="${esc(render)}" data-alt-src="${esc(older)}" data-last-src="${esc(heroImg(h))}" alt="" loading="lazy" decoding="async"></span>
+          <span class="fn-text">
+            <small>${dir === "prev" ? "Previous hero" : "Next hero"}</small>
+            <b>${esc(h.localized_name)}</b>
+            <span class="fn-type">${attrIcon(h.primary_attr)}${esc(attack)}</span>
+          </span>
+          <svg class="fn-arrow" viewBox="0 0 12 12" aria-hidden="true"><path d="${dir === "prev" ? "M8 2 3 6l5 4z" : "m4 2 5 4-5 4z"}"/></svg>
+        </a>`;
+    };
+    return `
+      <nav class="hero-footnav" aria-label="Browse heroes" data-rv>
+        ${card(prev, "prev")}
+        <a href="#/" class="fn-all" aria-label="All heroes"><span class="fn-grid" aria-hidden="true">${"<i></i>".repeat(6)}</span><small>All heroes</small></a>
+        ${card(next, "next")}
+      </nav>`;
   }
 
   function renderHero(id, p) {
@@ -942,7 +973,9 @@
             <div id="matchups"><div class="skel-rows">${'<span class="skeleton"></span>'.repeat(5)}</div></div>
           </section>
         </aside>
-      </div>`;
+      </div>
+
+      ${heroFootNav(prev, next)}`;
 
     setHeroVideo($(".hero-video", view), h);
     onScreen.observe($(".hero-video", view));
@@ -955,6 +988,13 @@
     });
     // Icons that don't exist on the CDN fall back to a coloured dot or the ability's initials.
     $$("img.attr-ico, img.side-ico", view).forEach((im) => im.addEventListener("error", () => { im.replaceWith(Object.assign(document.createElement("i"), { className: `attr ${im.dataset.attr}` })); }, { once: true }));
+    // Neighbour renders try the older CDN path, then the portrait, before hiding.
+    $$(".fn-art img", view).forEach((im) => im.addEventListener("error", function next() {
+      const alt = im.dataset.altSrc || im.dataset.lastSrc;
+      if (!alt) { im.removeEventListener("error", next); im.parentNode.classList.add("missing"); return; }
+      if (im.dataset.altSrc) delete im.dataset.altSrc; else { delete im.dataset.lastSrc; im.parentNode.classList.add("portrait"); }
+      im.src = alt;
+    }));
     $$(".ab img, .ab-thumb img, .ad-img", view).forEach((im) => im.addEventListener("error", () => im.classList.add("missing"), { once: true }));
     if (p) initProfile(view, p, h);
     const art = $(".hero-art", view);
@@ -975,33 +1015,55 @@
     const detail = $("#ab-detail", view);
     if (!detail) return;
     const entries = new Map(abilityEntries(p).map((e) => [e.key, e]));
-    const video = $(".ad-video", view);
     const media = $(".ad-media", view);
     const fallback = $(".ad-fallback", view);
-    onScreen.observe(video);
-    let current = null;
+    const layers = $$(".ad-video", view);
+    layers.forEach((v) => onScreen.observe(v));
+    // Two stacked videos: the next clip loads underneath and fades in over the old one once it plays,
+    // so switching abilities cross-fades instead of flashing black.
+    let front = null, current = null, textTimer = 0;
+    const unload = (v) => { v.pause(); v.removeAttribute("poster"); v.innerHTML = ""; v.load(); };
+    const showClip = (name, icon) => {
+      const v = layers.find((x) => x !== front);
+      const old = front;
+      front = v;
+      media.classList.remove("novideo");
+      fallback.src = abilityImg(icon);
+      v.poster = abilityVideo(h, name, "jpg");
+      v.innerHTML = `<source src="${esc(abilityVideo(h, name, "webm"))}" type="video/webm"><source src="${esc(abilityVideo(h, name, "mp4"))}" type="video/mp4">`;
+      let shown = false;
+      const reveal = () => {
+        if (shown || front !== v) return;
+        shown = true;
+        v.classList.add("on");
+        if (old) { old.classList.remove("on"); setTimeout(() => { if (front !== old) unload(old); }, 500); }
+      };
+      v.addEventListener("playing", reveal, { once: true });
+      // A clip that is slow to start still swaps in on its poster rather than leaving the old one up.
+      setTimeout(reveal, 900);
+      $("source:last-child", v).addEventListener("error", () => { if (front === v) { reveal(); media.classList.add("novideo"); } }, { once: true });
+      v.load();
+      // Off screen it waits; the shared observer starts it once it scrolls into view.
+      if (v._visible) v.play().catch(() => {});
+    };
     const pick = (key, scroll) => {
       const e = entries.get(key);
       if (!e) return;
       $$(".ab, .ab-thumb", view).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ab === key || (e.kind !== "base" && b.classList.contains("ab") && b.dataset.ab === e.a.name))));
-      detail.innerHTML = abilityDetail(e);
-      const im = $(".ad-img", detail);
-      if (im) im.addEventListener("error", () => im.classList.add("missing"), { once: true });
-      // Upgrades reuse the ability's own clip, as dota2.com does.
-      if (current !== e.a.name) {
-        current = e.a.name;
-        media.classList.remove("novideo", "ready");
-        fallback.src = abilityImg(e.a.name);
-        video.poster = abilityVideo(h, e.a.name, "jpg");
-        video.innerHTML = `<source src="${esc(abilityVideo(h, e.a.name, "webm"))}" type="video/webm"><source src="${esc(abilityVideo(h, e.a.name, "mp4"))}" type="video/mp4">`;
-        $("source:last-child", video).addEventListener("error", () => { if (current === e.a.name) media.classList.add("novideo"); }, { once: true });
-        video.load();
-        // Off screen it waits; the shared observer starts it once it scrolls into view.
-        if (video._visible) video.play().catch(() => {});
-      }
+      // The text fades out, swaps while invisible and fades back in.
+      const swap = () => {
+        detail.innerHTML = abilityDetail(e);
+        const im = $(".ad-img", detail);
+        if (im) im.addEventListener("error", () => im.classList.add("missing"), { once: true });
+        requestAnimationFrame(() => detail.classList.remove("swap"));
+      };
+      clearTimeout(textTimer);
+      if (!detail.innerHTML || reduceMotion) swap();
+      else { detail.classList.add("swap"); textTimer = setTimeout(swap, 180); }
+      const clip = clipName(h, e);
+      if (current !== clip) { current = clip; showClip(clip, e.a.name); }
       if (scroll) $(".hero-skills", view).scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     };
-    video.addEventListener("playing", () => media.classList.add("ready"));
     $(".ab-row", view)?.addEventListener("click", (ev) => { const b = ev.target.closest(".ab"); if (b) pick(b.dataset.ab, true); });
     $(".ad-strip", view).addEventListener("click", (ev) => { const b = ev.target.closest(".ab-thumb"); if (b) pick(b.dataset.ab, false); });
     pick(entries.keys().next().value, false);
